@@ -1,0 +1,176 @@
+/**
+ * 隊列管理システム
+ * パーティーメンバーの隊列配置とローテーションを管理
+ */
+class FormationManager {
+    constructor() {
+        // パーティーメンバー
+        this.members = [];
+        
+        // 先頭キャラクターのインデックス
+        this.frontIndex = 0;
+        
+        // 隊列間隔
+        this.formationSpacingMin = 60;
+        this.formationSpacingMax = 180;
+        this.formationSpacing = 100;
+        
+        // 隊列変更時の移動時間（秒）
+        this.transitionDuration = 0.2;
+        
+        // 隊列の基準位置
+        this.centerX = 0;
+        this.centerY = 0;
+        
+        // 移動方向（後で実装）
+        this.moveDirection = { x: 0, y: 1 };
+    }
+    
+    /**
+     * パーティーメンバーを追加
+     */
+    addMember(character) {
+        this.members.push(character);
+    }
+    
+    /**
+     * 隊列の中心位置を設定
+     */
+    setCenterPosition(x, y) {
+        this.centerX = x;
+        this.centerY = y;
+        this.updateFormationPositions();
+    }
+    
+    /**
+     * 隊列をローテーション（時計回り）
+     */
+    rotateFormation() {
+        if (this.members.length === 0) return;
+        
+        this.frontIndex = (this.frontIndex + 1) % this.members.length;
+        this.updateFormationPositions();
+        
+        return this.getFrontCharacter();
+    }
+    
+    /**
+     * 隊列間隔を設定
+     */
+    setFormationSpacing(spacing) {
+        this.formationSpacing = Math.max(
+            this.formationSpacingMin,
+            Math.min(this.formationSpacingMax, spacing)
+        );
+        this.updateFormationPositions();
+    }
+    
+    /**
+     * 隊列間隔を変更（相対値）
+     */
+    adjustFormationSpacing(delta) {
+        this.setFormationSpacing(this.formationSpacing + delta);
+    }
+    
+    /**
+     * 隊列間隔の正規化された値を取得（0.0～1.0）
+     */
+    getFormationSpacingNormalized() {
+        return (this.formationSpacing - this.formationSpacingMin) / 
+               (this.formationSpacingMax - this.formationSpacingMin);
+    }
+    
+    /**
+     * 先頭キャラクターを取得
+     */
+    getFrontCharacter() {
+        if (this.members.length === 0) return null;
+        return this.members[this.frontIndex];
+    }
+    
+    /**
+     * 隊列位置を更新
+     * 
+     * 配置パターン：
+     *        Front
+     *       /     \
+     *   RearLeft  RearRight
+     */
+    updateFormationPositions() {
+        if (this.members.length === 0) return;
+        
+        const spacing = this.formationSpacing;
+        const angle = Math.PI / 6; // 30度
+        
+        // 各キャラクターの隊列内位置を計算
+        for (let i = 0; i < this.members.length; i++) {
+            const relativeIndex = (i - this.frontIndex + this.members.length) % this.members.length;
+            const character = this.members[i];
+            
+            let offsetX = 0;
+            let offsetY = 0;
+            
+            if (relativeIndex === 0) {
+                // 先頭キャラクター
+                offsetY = -spacing * 0.5;
+            } else if (relativeIndex === 1) {
+                // 後衛左
+                offsetX = -spacing * Math.sin(angle);
+                offsetY = spacing * 0.3;
+            } else if (relativeIndex === 2) {
+                // 後衛右
+                offsetX = spacing * Math.sin(angle);
+                offsetY = spacing * 0.3;
+            }
+            
+            // 目標位置を設定
+            character.setTarget(
+                this.centerX + offsetX,
+                this.centerY + offsetY
+            );
+        }
+    }
+    
+    /**
+     * 全キャラクターを更新
+     */
+    update() {
+        for (const member of this.members) {
+            member.update();
+        }
+    }
+    
+    /**
+     * 全キャラクターを描画
+     */
+    draw(ctx) {
+        const frontChar = this.getFrontCharacter();
+        
+        // 後衛を先に描画
+        for (const member of this.members) {
+            if (member !== frontChar) {
+                member.draw(ctx, false);
+            }
+        }
+        
+        // 先頭を最後に描画（最前面）
+        if (frontChar) {
+            frontChar.draw(ctx, true);
+        }
+    }
+    
+    /**
+     * キャラクター数を取得
+     */
+    getMemberCount() {
+        return this.members.length;
+    }
+    
+    /**
+     * インデックスでキャラクターを取得
+     */
+    getMember(index) {
+        if (index < 0 || index >= this.members.length) return null;
+        return this.members[index];
+    }
+}
