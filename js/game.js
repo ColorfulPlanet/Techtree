@@ -15,15 +15,26 @@ class Game {
         // 隊列管理システム
         this.formation = new FormationManager();
         
-        // 入力ハンドラー
+        // 入力ハンドラー（隊列操作用）
         this.inputHandler = null;
         
-        // パーティーの移動位置
+        // 仮想ジョイスティック
+        this.joystick = null;
+        
+        // カメラ位置（ワールド座標）
+        this.cameraX = 0;
+        this.cameraY = 0;
+        
+        // パーティーの位置（ワールド座標）
         this.partyX = 0;
         this.partyY = 0;
-        this.partyTargetX = 0;
-        this.partyTargetY = 0;
-        this.partyMoveSpeed = 0.08;
+        
+        // パーティーの速度
+        this.partyVelocityX = 0;
+        this.partyVelocityY = 0;
+        this.partyMaxSpeed = 3;
+        this.partyAcceleration = 0.5;
+        this.partyFriction = 0.85;
         
         // UI要素
         this.debugInfo = {
@@ -31,10 +42,6 @@ class Game {
             formationSpacing: document.getElementById('formationSpacing')
         };
         this.gaugeIndicator = document.getElementById('gaugeIndicator');
-        
-        // タッチ移動用
-        this.moveTargetX = null;
-        this.moveTargetY = null;
         
         // 初期化
         this.init();
@@ -51,11 +58,12 @@ class Game {
         // キャラクターを作成
         this.createCharacters();
         
-        // 初期位置を設定
-        this.partyX = this.width / 2;
-        this.partyY = this.height / 2;
-        this.partyTargetX = this.partyX;
-        this.partyTargetY = this.partyY;
+        // 初期位置を設定（ワールド座標の中心）
+        this.partyX = 0;
+        this.partyY = 0;
+        this.cameraX = 0;
+        this.cameraY = 0;
+        
         this.formation.setCenterPosition(this.partyX, this.partyY);
         
         // 初期位置に配置
@@ -63,11 +71,12 @@ class Game {
             member.setPosition(member.targetX, member.targetY);
         }
         
-        // 入力ハンドラーを設定
-        this.setupInput();
+        // 仮想ジョイスティックを作成
+        const joystickContainer = document.getElementById('joystickArea');
+        this.joystick = new VirtualJoystick(joystickContainer);
         
-        // キャンバスクリック/タッチで移動
-        this.setupCanvasInput();
+        // 隊列操作の入力ハンドラーを設定
+        this.setupFormationInput();
         
         // UIを更新
         this.updateUI();
@@ -100,66 +109,20 @@ class Game {
     }
     
     /**
-     * 入力ハンドラーを設定
+     * 隊列操作の入力ハンドラーを設定
      */
-    setupInput() {
+    setupFormationInput() {
         const button = document.getElementById('formationButton');
         this.inputHandler = new FormationInputHandler(button, this.formation);
         
         // ローテーション時のコールバック
         this.inputHandler.setRotateCallback((frontChar) => {
             this.updateUI();
-            console.log(`先頭キャラクター: ${frontChar.name}`);
         });
         
         // 間隔変更時のコールバック
         this.inputHandler.setSpacingChangeCallback((spacing) => {
             this.updateUI();
-        });
-    }
-    
-    /**
-     * キャンバスの入力を設定
-     */
-    setupCanvasInput() {
-        // タッチイベント
-        this.canvas.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            const touch = e.touches[0];
-            const rect = this.canvas.getBoundingClientRect();
-            this.moveTargetX = touch.clientX - rect.left;
-            this.moveTargetY = touch.clientY - rect.top;
-            this.partyTargetX = this.moveTargetX;
-            this.partyTargetY = this.moveTargetY;
-        }, { passive: false });
-        
-        this.canvas.addEventListener('touchmove', (e) => {
-            e.preventDefault();
-            const touch = e.touches[0];
-            const rect = this.canvas.getBoundingClientRect();
-            this.moveTargetX = touch.clientX - rect.left;
-            this.moveTargetY = touch.clientY - rect.top;
-            this.partyTargetX = this.moveTargetX;
-            this.partyTargetY = this.moveTargetY;
-        }, { passive: false });
-        
-        // マウスイベント
-        this.canvas.addEventListener('mousedown', (e) => {
-            const rect = this.canvas.getBoundingClientRect();
-            this.moveTargetX = e.clientX - rect.left;
-            this.moveTargetY = e.clientY - rect.top;
-            this.partyTargetX = this.moveTargetX;
-            this.partyTargetY = this.moveTargetY;
-        });
-        
-        this.canvas.addEventListener('mousemove', (e) => {
-            if (e.buttons === 1) {
-                const rect = this.canvas.getBoundingClientRect();
-                this.moveTargetX = e.clientX - rect.left;
-                this.moveTargetY = e.clientY - rect.top;
-                this.partyTargetX = this.moveTargetX;
-                this.partyTargetY = this.moveTargetY;
-            }
         });
     }
     
@@ -184,18 +147,57 @@ class Game {
      * 更新処理
      */
     update() {
-        // パーティー全体の移動
-        const dx = this.partyTargetX - this.partyX;
-        const dy = this.partyTargetY - this.partyY;
+        // ジョイスティック入力を取得
+        const input = this.joystick.getInput();
         
-        this.partyX += dx * this.partyMoveSpeed;
-        this.partyY += dy * this.partyMoveSpeed;
+        // 入力に応じて加速
+        if (input.active && (Math.abs(input.x) > 0 || Math.abs(input.y) > 0)) {
+            this.partyVelocityX += input.x * this.partyAcceleration;
+            this.partyVelocityY += input.y * this.partyAcceleration;
+        }
+        
+        // 摩擦を適用
+        this.partyVelocityX *= this.partyFriction;
+        this.partyVelocityY *= this.partyFriction;
+        
+        // 最大速度を制限
+        const speed = Math.sqrt(
+            this.partyVelocityX * this.partyVelocityX + 
+            this.partyVelocityY * this.partyVelocityY
+        );
+        
+        if (speed > this.partyMaxSpeed) {
+            const ratio = this.partyMaxSpeed / speed;
+            this.partyVelocityX *= ratio;
+            this.partyVelocityY *= ratio;
+        }
+        
+        // 位置を更新（ワールド座標）
+        this.partyX += this.partyVelocityX;
+        this.partyY += this.partyVelocityY;
+        
+        // カメラをパーティーに追従
+        this.cameraX = this.partyX;
+        this.cameraY = this.partyY;
         
         // 隊列の中心位置を更新
         this.formation.setCenterPosition(this.partyX, this.partyY);
         
+        // 移動方向を隊列に伝える
+        this.formation.setMovementDirection(this.partyVelocityX, this.partyVelocityY);
+        
         // 各キャラクターを更新
         this.formation.update();
+    }
+    
+    /**
+     * ワールド座標からスクリーン座標に変換
+     */
+    worldToScreen(worldX, worldY) {
+        return {
+            x: worldX - this.cameraX + this.width / 2,
+            y: worldY - this.cameraY + this.height / 2
+        };
     }
     
     /**
@@ -206,38 +208,33 @@ class Game {
         this.ctx.fillStyle = '#2a2a2a';
         this.ctx.fillRect(0, 0, this.width, this.height);
         
-        // グリッド描画（参考用）
+        // グリッド描画（参考用、カメラに追従）
         this.drawGrid();
         
-        // 移動目標地点を表示
-        if (this.moveTargetX !== null && this.moveTargetY !== null) {
-            const distance = Math.hypot(
-                this.moveTargetX - this.partyX,
-                this.moveTargetY - this.partyY
-            );
-            
-            if (distance > 5) {
-                this.ctx.save();
-                this.ctx.strokeStyle = 'rgba(251, 191, 36, 0.5)';
-                this.ctx.lineWidth = 2;
-                this.ctx.setLineDash([5, 5]);
-                this.ctx.beginPath();
-                this.ctx.arc(this.moveTargetX, this.moveTargetY, 30, 0, Math.PI * 2);
-                this.ctx.stroke();
-                this.ctx.restore();
-            }
-        }
+        // カメラの変換を保存
+        this.ctx.save();
         
-        // 隊列を描画
+        // カメラの変換を適用
+        // スクリーン中央にキャラクターを配置
+        this.ctx.translate(
+            this.width / 2 - this.cameraX,
+            this.height / 2 - this.cameraY
+        );
+        
+        // 隊列を描画（ワールド座標）
         this.formation.draw(this.ctx);
         
-        // 隊列の中心点を表示（デバッグ用）
-        this.ctx.save();
+        // パーティーの中心点を表示（デバッグ用）
         this.ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
         this.ctx.beginPath();
         this.ctx.arc(this.partyX, this.partyY, 3, 0, Math.PI * 2);
         this.ctx.fill();
+        
+        // カメラの変換を復元
         this.ctx.restore();
+        
+        // 画面中央のクロスヘア（参考用）
+        this.drawCenterCrosshair();
     }
     
     /**
@@ -250,8 +247,12 @@ class Game {
         
         const gridSize = 50;
         
+        // カメラ位置を考慮したオフセット
+        const offsetX = (this.width / 2 - this.cameraX) % gridSize;
+        const offsetY = (this.height / 2 - this.cameraY) % gridSize;
+        
         // 縦線
-        for (let x = 0; x < this.width; x += gridSize) {
+        for (let x = offsetX; x < this.width; x += gridSize) {
             this.ctx.beginPath();
             this.ctx.moveTo(x, 0);
             this.ctx.lineTo(x, this.height);
@@ -259,12 +260,39 @@ class Game {
         }
         
         // 横線
-        for (let y = 0; y < this.height; y += gridSize) {
+        for (let y = offsetY; y < this.height; y += gridSize) {
             this.ctx.beginPath();
             this.ctx.moveTo(0, y);
             this.ctx.lineTo(this.width, y);
             this.ctx.stroke();
         }
+        
+        this.ctx.restore();
+    }
+    
+    /**
+     * 画面中央のクロスヘア描画
+     */
+    drawCenterCrosshair() {
+        this.ctx.save();
+        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+        this.ctx.lineWidth = 2;
+        
+        const centerX = this.width / 2;
+        const centerY = this.height / 2;
+        const size = 15;
+        
+        // 横線
+        this.ctx.beginPath();
+        this.ctx.moveTo(centerX - size, centerY);
+        this.ctx.lineTo(centerX + size, centerY);
+        this.ctx.stroke();
+        
+        // 縦線
+        this.ctx.beginPath();
+        this.ctx.moveTo(centerX, centerY - size);
+        this.ctx.lineTo(centerX, centerY + size);
+        this.ctx.stroke();
         
         this.ctx.restore();
     }
