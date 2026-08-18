@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>3人パーティー隊列システム - プロトタイプ</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+        
+        <!-- 隊列操作UI -->
+        <div id="formationControl">
+            <div id="formationButton">
+                <div class="button-label">隊列</div>
+            </div>
+        </div>
+        
+        <!-- デバッグ情報表示 -->
+        <div id="debugInfo">
+            <div>先頭: <span id="frontCharacter">A</span></div>
+            <div>隊列間隔: <span id="formationSpacing">100</span></div>
+        </div>
+        
+        <!-- 隊列間隔ゲージ -->
+        <div id="spacingGauge">
+            <div class="gauge-label">広</div>
+            <div class="gauge-bar">
+                <div id="gaugeIndicator"></div>
+            </div>
+            <div class="gauge-label">狭</div>
+        </div>
+    </div>
+
+    <!-- スクリプト読み込み -->
+    <script src="js/character.js"></script>
+    <script src="js/formation.js"></script>
+    <script src="js/input.js"></script>
+    <script src="js/game.js"></script>
+</body>
+</html>
