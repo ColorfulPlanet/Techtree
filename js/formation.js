@@ -22,8 +22,12 @@ class FormationManager {
         this.centerX = 0;
         this.centerY = 0;
         
-        // 移動方向（後で実装）
-        this.moveDirection = { x: 0, y: 1 };
+        // 隊列の向き（ラジアン、0 = 上方向）
+        this.formationAngle = 0;
+        this.targetAngle = 0;
+        
+        // 回転速度の基本値
+        this.baseRotationSpeed = 0.15;
     }
     
     /**
@@ -39,7 +43,18 @@ class FormationManager {
     setCenterPosition(x, y) {
         this.centerX = x;
         this.centerY = y;
-        this.updateFormationPositions();
+    }
+    
+    /**
+     * 移動方向を設定（隊列の向きを更新）
+     */
+    setMovementDirection(velocityX, velocityY) {
+        // 速度がほぼゼロの場合は向きを変えない
+        const speed = Math.sqrt(velocityX * velocityX + velocityY * velocityY);
+        if (speed < 0.1) return;
+        
+        // 移動方向の角度を計算（上方向を0として時計回り）
+        this.targetAngle = Math.atan2(velocityX, -velocityY);
     }
     
     /**
@@ -89,6 +104,30 @@ class FormationManager {
     }
     
     /**
+     * 隊列の向きを更新
+     */
+    updateFormationAngle() {
+        // 角度差を計算
+        let angleDiff = this.targetAngle - this.formationAngle;
+        
+        // 角度差を-π～πの範囲に正規化
+        while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+        while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+        
+        // 隊列間隔が広いほど回転が遅くなる
+        // formationSpacingが大きいほど、回転速度が遅くなる
+        const spacingFactor = this.formationSpacing / this.formationSpacingMax;
+        const rotationSpeed = this.baseRotationSpeed * (1.0 - spacingFactor * 0.5);
+        
+        // 角度を徐々に目標に近づける
+        this.formationAngle += angleDiff * rotationSpeed;
+        
+        // 角度を-π～πの範囲に正規化
+        while (this.formationAngle > Math.PI) this.formationAngle -= Math.PI * 2;
+        while (this.formationAngle < -Math.PI) this.formationAngle += Math.PI * 2;
+    }
+    
+    /**
      * 隊列位置を更新
      * 
      * 配置パターン：
@@ -111,7 +150,8 @@ class FormationManager {
             let offsetY = 0;
             
             if (relativeIndex === 0) {
-                // 先頭キャラクター
+                // 先頭キャラクター（進行方向の前）
+                offsetX = 0;
                 offsetY = -spacing * 0.5;
             } else if (relativeIndex === 1) {
                 // 後衛左
@@ -123,10 +163,16 @@ class FormationManager {
                 offsetY = spacing * 0.3;
             }
             
+            // 隊列の向きに応じて回転
+            const cos = Math.cos(this.formationAngle);
+            const sin = Math.sin(this.formationAngle);
+            const rotatedX = offsetX * cos - offsetY * sin;
+            const rotatedY = offsetX * sin + offsetY * cos;
+            
             // 目標位置を設定
             character.setTarget(
-                this.centerX + offsetX,
-                this.centerY + offsetY
+                this.centerX + rotatedX,
+                this.centerY + rotatedY
             );
         }
     }
@@ -135,6 +181,13 @@ class FormationManager {
      * 全キャラクターを更新
      */
     update() {
+        // 隊列の向きを更新
+        this.updateFormationAngle();
+        
+        // 隊列位置を更新
+        this.updateFormationPositions();
+        
+        // 各キャラクターを更新
         for (const member of this.members) {
             member.update();
         }

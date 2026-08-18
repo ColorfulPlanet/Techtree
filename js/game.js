@@ -183,6 +183,9 @@ class Game {
         // 隊列の中心位置を更新
         this.formation.setCenterPosition(this.partyX, this.partyY);
         
+        // 移動方向を隊列に伝える
+        this.formation.setMovementDirection(this.partyVelocityX, this.partyVelocityY);
+        
         // 各キャラクターを更新
         this.formation.update();
     }
