@@ -272,12 +272,12 @@ class Game {
      */
     drawCenterCrosshair() {
         this.ctx.save();
-        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
-        this.ctx.lineWidth = 1;
+        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+        this.ctx.lineWidth = 2;
         
         const centerX = this.width / 2;
         const centerY = this.height / 2;
-        const size = 10;
+        const size = 15;
         
         // 横線
         this.ctx.beginPath();
