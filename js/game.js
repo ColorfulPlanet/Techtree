@@ -305,5 +305,12 @@ class Game {
 
 // ゲーム開始
 window.addEventListener('DOMContentLoaded', () => {
+    // 画面の向きをランドスケープに固定（可能な場合）
+    if (screen.orientation && screen.orientation.lock) {
+        screen.orientation.lock('landscape').catch(err => {
+            console.log('画面の向きのロックに失敗:', err);
+        });
+    }
+    
     new Game();
 });

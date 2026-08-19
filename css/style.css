@@ -8,17 +8,78 @@ body {
     width: 100vw;
     height: 100vh;
     overflow: hidden;
-    background-color: #1a1a1a;
+    background-color: #000;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     touch-action: none;
     -webkit-user-select: none;
     user-select: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* 縦持ち警告 */
+#rotateWarning {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: #1a1a1a;
+    z-index: 10000;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+}
+
+.rotate-icon {
+    font-size: 80px;
+    animation: rotatePhone 2s ease-in-out infinite;
+}
+
+@keyframes rotatePhone {
+    0%, 100% { transform: rotate(0deg); }
+    50% { transform: rotate(90deg); }
+}
+
+.rotate-message {
+    color: #fff;
+    font-size: 24px;
+    font-weight: bold;
+    text-align: center;
+}
+
+.rotate-arrow {
+    font-size: 60px;
+    color: #667eea;
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 0.5; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.2); }
+}
+
+/* 縦持ちの場合は警告を表示 */
+@media (orientation: portrait) {
+    #rotateWarning {
+        display: flex !important;
+    }
+    
+    #gameContainer {
+        display: none !important;
+    }
 }
 
 #gameContainer {
+    position: relative;
     width: 100%;
     height: 100%;
-    position: relative;
+    max-width: 177.78vh; /* 16:9のアスペクト比 (9/16 * 100) */
+    max-height: 56.25vw; /* 16:9のアスペクト比 (9/16 * 100) */
+    background-color: #000;
 }
 
 #gameCanvas {
