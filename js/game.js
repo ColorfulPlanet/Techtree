@@ -264,6 +264,12 @@ class Game {
             const item = this.jobHudItems[pile.jobType];
             if (!item) continue;
             const check = item.querySelector('.job-check');
+            const remain = item.querySelector('.job-remain');
+            const fill = item.querySelector('.job-bar-fill');
+            const ratio = Math.max(0, pile.remaining / pile.maxWork);
+            const percent = pile.isComplete() ? 0 : Math.max(1, Math.ceil(ratio * 100));
+            if (fill) fill.style.width = `${pile.isComplete() ? 0 : percent}%`;
+            if (remain) remain.textContent = pile.isComplete() ? '完了' : `残り ${percent}%`;
             if (!check) continue;
             if (pile.isComplete()) {
                 item.classList.add('done');
@@ -354,7 +360,6 @@ class Game {
                 pile.justCompleted = false;
                 this.particles.spawnComplete(pile.x, pile.y);
                 this.particles.addText(pile.x, pile.y - 40, `${pile.label} 完了！`, '#ca8a04');
-                this.updateJobHud();
             }
             if (pile.isComplete()) continue;
 
@@ -384,6 +389,8 @@ class Game {
                 this.workTextTimer = 50;
             }
         }
+
+        this.updateJobHud();
     }
 
     updateCombat() {

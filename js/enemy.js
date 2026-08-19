@@ -6,7 +6,7 @@ class DustMonster {
     constructor(x, y) {
         this.x = x;
         this.y = y;
-        this.radius = 16;
+        this.radius = 22;
         this.maxHp = 24;
         this.hp = this.maxHp;
         this.alive = true;
@@ -75,7 +75,7 @@ class DustMonster {
         if (!this.alive && this.deathTimer <= 0) return;
 
         const puff = Math.sin(this.anim * 2.4) * 2;
-        const scale = this.alive ? 1 : Math.max(0.1, this.deathTimer / 24);
+        const scale = (this.alive ? 1 : Math.max(0.1, this.deathTimer / 24)) * 1.35;
         const alpha = this.alive ? 1 : this.deathTimer / 24;
 
         ctx.save();

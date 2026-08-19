@@ -233,7 +233,7 @@ body {
     border-radius: 14px;
     z-index: 100;
     line-height: 1.6;
-    min-width: 160px;
+    min-width: 210px;
     box-shadow: 0 4px 12px rgba(120, 80, 120, 0.15);
     pointer-events: none;
 }
@@ -248,16 +248,62 @@ body {
 .job-item {
     display: flex;
     align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.job-meta {
+    flex: 1;
+    min-width: 0;
+}
+
+.job-row {
+    display: flex;
+    align-items: center;
     gap: 6px;
+}
+
+.job-remain {
+    margin-left: auto;
+    font-size: 11px;
+    color: #9d7a9d;
+    font-weight: bold;
 }
 
 .job-item.done {
     color: #ca8a04;
 }
 
+.job-item.done .job-remain {
+    color: #ca8a04;
+}
+
 .job-check {
-    margin-left: auto;
     font-weight: bold;
+}
+
+.job-bar {
+    margin-top: 3px;
+    height: 8px;
+    background: #f1f5f9;
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.job-bar-fill {
+    height: 100%;
+    width: 100%;
+    border-radius: 999px;
+    background: #f9a8d4;
+    transition: width 0.12s linear;
+}
+
+#jobCooking .job-bar-fill {
+    background: #fdba74;
+}
+
+#jobLaundry .job-bar-fill {
+    background: #7dd3fc;
 }
 
 #hintText {

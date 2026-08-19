@@ -106,7 +106,8 @@ class Maid extends Character {
         this.attackLabel = preset.attackLabel;
         this.workLabel = preset.workLabel;
 
-        this.radius = 18;
+        this.radius = 24;
+        this.drawScale = 1.35;
         this.animTime = Math.random() * Math.PI * 2;
         this.facing = 1;
         this.isWorking = false;
@@ -158,7 +159,7 @@ class Maid extends Character {
 
         ctx.save();
         ctx.translate(x, y);
-        ctx.scale(face, 1);
+        ctx.scale(face * this.drawScale, this.drawScale);
 
         this.drawShadow(ctx);
         if (isFront) this.drawFrontGlow(ctx);
@@ -352,14 +353,14 @@ class Maid extends Character {
 
     drawNameplate(ctx, isFront) {
         ctx.save();
-        ctx.font = 'bold 11px sans-serif';
+        ctx.font = 'bold 13px sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
-        ctx.lineWidth = 3;
+        ctx.lineWidth = 4;
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
         ctx.fillStyle = isFront ? '#b45309' : '#6b4f6b';
-        ctx.strokeText(this.name, this.x, this.y + 22);
-        ctx.fillText(this.name, this.x, this.y + 22);
+        ctx.strokeText(this.name, this.x, this.y + 30);
+        ctx.fillText(this.name, this.x, this.y + 30);
         ctx.restore();
     }
 }

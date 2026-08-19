@@ -44,9 +44,27 @@
 
         <div id="jobObjectives">
             <div class="job-title">今日のお仕事</div>
-            <div class="job-item" id="jobCleaning"><span class="job-icon">🧹</span> 掃除 <span class="job-check">○</span></div>
-            <div class="job-item" id="jobCooking"><span class="job-icon">🍳</span> 料理 <span class="job-check">○</span></div>
-            <div class="job-item" id="jobLaundry"><span class="job-icon">🧺</span> 洗濯 <span class="job-check">○</span></div>
+            <div class="job-item" id="jobCleaning">
+                <span class="job-icon">🧹</span>
+                <div class="job-meta">
+                    <div class="job-row">掃除 <span class="job-remain">残り 100%</span> <span class="job-check">○</span></div>
+                    <div class="job-bar"><div class="job-bar-fill" data-job="cleaning"></div></div>
+                </div>
+            </div>
+            <div class="job-item" id="jobCooking">
+                <span class="job-icon">🍳</span>
+                <div class="job-meta">
+                    <div class="job-row">料理 <span class="job-remain">残り 100%</span> <span class="job-check">○</span></div>
+                    <div class="job-bar"><div class="job-bar-fill" data-job="cooking"></div></div>
+                </div>
+            </div>
+            <div class="job-item" id="jobLaundry">
+                <span class="job-icon">🧺</span>
+                <div class="job-meta">
+                    <div class="job-row">洗濯 <span class="job-remain">残り 100%</span> <span class="job-check">○</span></div>
+                    <div class="job-bar"><div class="job-bar-fill" data-job="laundry"></div></div>
+                </div>
+            </div>
         </div>
 
         <div id="hintText">得意なメイドを先頭にして、仕事の山を片付けよう</div>

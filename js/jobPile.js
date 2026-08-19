@@ -193,50 +193,82 @@ class JobPile {
     }
 
     drawGauge(ctx) {
-        const w = 70;
-        const h = 8;
+        const w = 132;
+        const h = 22;
         const gx = this.x - w / 2;
-        const gy = this.y - 58;
-        const ratio = this.remaining / this.maxWork;
+        const gy = this.y - 78;
+        const ratio = Math.max(0, this.remaining / this.maxWork);
+        const percent = this.isComplete() ? 0 : Math.max(1, Math.ceil(ratio * 100));
 
         ctx.save();
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-        roundRect(ctx, gx - 2, gy - 2, w + 4, h + 4, 6);
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.94)';
+        ctx.strokeStyle = 'rgba(107, 79, 107, 0.35)';
+        ctx.lineWidth = 2;
+        roundRect(ctx, gx - 8, gy - 20, w + 16, h + 28, 12);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.font = 'bold 12px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillStyle = this.isComplete() ? '#ca8a04' : '#6b4f6b';
+        const caption = this.isComplete() ? '完了！' : `残り ${percent}%`;
+        ctx.fillText(caption, this.x, gy - 4);
+
+        ctx.fillStyle = '#e2e8f0';
+        roundRect(ctx, gx, gy, w, h, 8);
         ctx.fill();
 
-        ctx.fillStyle = '#f1f5f9';
-        roundRect(ctx, gx, gy, w, h, 4);
-        ctx.fill();
-
-        if (ratio > 0) {
-            ctx.fillStyle = this.color;
-            roundRect(ctx, gx, gy, Math.max(4, w * ratio), h, 4);
-            ctx.fill();
-        } else {
-            ctx.fillStyle = '#fde68a';
-            roundRect(ctx, gx, gy, w, h, 4);
+        const fillW = this.isComplete() ? w : Math.max(ratio > 0 ? 8 : 0, w * ratio);
+        if (fillW > 0) {
+            ctx.fillStyle = this.isComplete() ? '#fde68a' : this.color;
+            roundRect(ctx, gx, gy, fillW, h, 8);
             ctx.fill();
         }
+
+        const segments = 10;
+        const gap = 2;
+        const segW = (w - gap * (segments - 1)) / segments;
+        ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+        ctx.lineWidth = 1;
+        for (let i = 1; i < segments; i++) {
+            const sx = gx + i * (segW + gap) - gap / 2;
+            ctx.beginPath();
+            ctx.moveTo(sx, gy + 2);
+            ctx.lineTo(sx, gy + h - 2);
+            ctx.stroke();
+        }
+
+        ctx.font = 'bold 13px sans-serif';
+        ctx.textBaseline = 'middle';
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+        ctx.fillStyle = this.isComplete() ? '#92400e' : '#5b3b5b';
+        const barText = this.isComplete() ? 'ピカピカ' : `${percent}%`;
+        ctx.strokeText(barText, this.x, gy + h / 2 + 1);
+        ctx.fillText(barText, this.x, gy + h / 2 + 1);
+
         ctx.restore();
     }
 
     drawLabel(ctx) {
         ctx.save();
-        ctx.font = 'bold 12px sans-serif';
+        ctx.font = 'bold 14px sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'bottom';
         ctx.lineWidth = 4;
         ctx.strokeStyle = 'rgba(255,255,255,0.92)';
         const text = this.isComplete() ? `${this.icon} ピカピカ！` : `${this.icon} ${this.label}`;
         ctx.fillStyle = this.isComplete() ? '#ca8a04' : '#6b4f6b';
-        ctx.strokeText(text, this.x, this.y - 62);
-        ctx.fillText(text, this.x, this.y - 62);
+        ctx.strokeText(text, this.x, this.y - 102);
+        ctx.fillText(text, this.x, this.y - 102);
 
         if (!this.isComplete()) {
-            ctx.font = '10px sans-serif';
+            ctx.font = '11px sans-serif';
             ctx.fillStyle = '#9d7a9d';
-            ctx.strokeText(`おすすめ ${this.recommend}`, this.x, this.y - 48);
-            ctx.fillText(`おすすめ ${this.recommend}`, this.x, this.y - 48);
+            ctx.strokeText(`おすすめ ${this.recommend}`, this.x, this.y - 50);
+            ctx.fillText(`おすすめ ${this.recommend}`, this.x, this.y - 50);
         }
         ctx.restore();
     }
