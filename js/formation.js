@@ -12,7 +12,7 @@ class FormationManager {
         
         // 隊列間隔
         this.formationSpacingMin = 60;
-        this.formationSpacingMax = 180;
+        this.formationSpacingMax = 240;
         this.formationSpacing = 100;
         
         // 隊列変更時の移動時間（秒）
