@@ -1,6 +1,8 @@
 /**
  * ゲームメインロジック
  * 全システムを統合し、ゲームループを管理
+ *
+ * 既存の移動・隊列・入力は変更せず、メイドのお仕事システムを追加する。
  */
 class Game {
     constructor() {
@@ -41,6 +43,26 @@ class Game {
             frontCharacter: document.getElementById('frontCharacter'),
             formationSpacing: document.getElementById('formationSpacing')
         };
+        this.jobHudItems = {
+            cleaning: document.getElementById('jobCleaning'),
+            cooking: document.getElementById('jobCooking'),
+            laundry: document.getElementById('jobLaundry')
+        };
+        this.clearOverlay = document.getElementById('clearOverlay');
+        this.hintText = document.getElementById('hintText');
+        
+        // メイドゲームシステム（隊列ロジックとは独立）
+        this.stage = new Stage();
+        this.particles = new ParticleSystem();
+        this.jobPiles = [];
+        this.enemies = [];
+        this.rescue = null;
+        this.workTextTimer = 0;
+        this.cleared = false;
+        this.hintTimer = 240;
+        this.swapOverlay = document.getElementById('swapOverlay');
+        this.swapMessage = document.getElementById('swapMessage');
+        this.swapButtons = document.getElementById('swapButtons');
         
         // 初期化
         this.init();
@@ -59,9 +81,9 @@ class Game {
         
         // 初期位置を設定（ワールド座標の中心）
         this.partyX = 0;
-        this.partyY = 0;
+        this.partyY = 80;
         this.cameraX = 0;
-        this.cameraY = 0;
+        this.cameraY = 80;
         
         this.formation.setCenterPosition(this.partyX, this.partyY);
         
@@ -77,11 +99,99 @@ class Game {
         // 隊列操作の入力ハンドラーを設定
         this.setupFormationInput();
         
+        this.resetStageEntities();
+        this.setupClearUi();
+        this.setupSwapUi();
+        
         // UIを更新
         this.updateUI();
         
         // ゲームループ開始
         this.gameLoop();
+    }
+
+    resetStageEntities() {
+        this.jobPiles = this.stage.createJobPiles();
+        this.enemies = this.stage.createEnemies();
+        this.rescue = this.stage.createRescue();
+        this.particles = new ParticleSystem();
+        this.cleared = false;
+        if (this.clearOverlay) this.clearOverlay.classList.add('hidden');
+        if (this.swapOverlay) this.swapOverlay.classList.add('hidden');
+        this.updateJobHud();
+    }
+
+    setupClearUi() {
+        const retry = document.getElementById('retryButton');
+        if (retry) {
+            retry.addEventListener('click', () => {
+                this.partyX = 0;
+                this.partyY = 80;
+                this.partyVelocityX = 0;
+                this.partyVelocityY = 0;
+                this.cameraX = 0;
+                this.cameraY = 80;
+                this.formation.members.length = 0;
+                this.formation.frontIndex = 0;
+                this.createCharacters();
+                this.formation.setCenterPosition(this.partyX, this.partyY);
+                this.formation.updateFormationPositions();
+                for (const member of this.formation.members) {
+                    member.setPosition(member.targetX, member.targetY);
+                }
+                this.resetStageEntities();
+                this.hintTimer = 180;
+                this.updateUI();
+            });
+        }
+    }
+
+    setupSwapUi() {
+        const cancel = document.getElementById('swapCancel');
+        if (cancel) {
+            cancel.addEventListener('click', () => this.closeSwapOffer());
+        }
+    }
+
+    openSwapOffer() {
+        if (!this.rescue || !this.swapOverlay || !this.swapButtons) return;
+        this.rescue.state = 'offered';
+        const candidate = this.rescue.waitingMaid;
+        if (this.swapMessage) {
+            this.swapMessage.textContent = `${candidate.name}が仲間になりました！誰と交代する？`;
+        }
+        this.swapButtons.innerHTML = '';
+        this.formation.members.forEach((member, index) => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'swap-member';
+            btn.textContent = member.name;
+            btn.addEventListener('click', () => this.swapPartyMember(index));
+            this.swapButtons.appendChild(btn);
+        });
+        this.swapOverlay.classList.remove('hidden');
+        this.particles.addText(candidate.x, candidate.y - 40, `${candidate.name}が仲間になりました！`, candidate.color);
+    }
+
+    closeSwapOffer() {
+        if (this.swapOverlay) this.swapOverlay.classList.add('hidden');
+        if (this.rescue) this.rescue.markHandled();
+    }
+
+    swapPartyMember(index) {
+        if (!this.rescue) return;
+        const outgoing = this.formation.members[index];
+        const incoming = this.rescue.waitingMaid;
+        incoming.setPosition(outgoing.x, outgoing.y);
+        incoming.setTarget(outgoing.targetX, outgoing.targetY);
+        this.formation.members[index] = incoming;
+        outgoing.setPosition(this.rescue.homeX, this.rescue.homeY);
+        outgoing.setTarget(this.rescue.homeX, this.rescue.homeY);
+        this.rescue.waitingMaid = outgoing;
+        this.rescue.markHandled();
+        this.particles.addText(incoming.x, incoming.y - 36, `${incoming.name}加入！`, incoming.color);
+        this.closeSwapOffer();
+        this.updateUI();
     }
     
     /**
@@ -98,13 +208,13 @@ class Game {
      * キャラクターを作成
      */
     createCharacters() {
-        const characterA = new Character('A', 'A', '#ef4444');
-        const characterB = new Character('B', 'B', '#3b82f6');
-        const characterC = new Character('C', 'C', '#10b981');
+        const cleaningMaid = new Maid('cleaning');
+        const cookingMaid = new Maid('cooking');
+        const laundryMaid = new Maid('laundry');
         
-        this.formation.addMember(characterA);
-        this.formation.addMember(characterB);
-        this.formation.addMember(characterC);
+        this.formation.addMember(cleaningMaid);
+        this.formation.addMember(cookingMaid);
+        this.formation.addMember(laundryMaid);
     }
     
     /**
@@ -118,6 +228,14 @@ class Game {
         // ローテーション時のコールバック
         this.inputHandler.setRotateCallback((frontChar) => {
             this.updateUI();
+            if (frontChar && frontChar.workLabel) {
+                this.particles.addText(
+                    frontChar.x,
+                    frontChar.y - 36,
+                    `${frontChar.name}が先頭！`,
+                    frontChar.color
+                );
+            }
         });
         
         // 間隔変更時のコールバック
@@ -137,6 +255,24 @@ class Game {
         
         this.debugInfo.formationSpacing.textContent = 
             Math.round(this.formation.formationSpacing);
+
+        this.updateJobHud();
+    }
+
+    updateJobHud() {
+        for (const pile of this.jobPiles) {
+            const item = this.jobHudItems[pile.jobType];
+            if (!item) continue;
+            const check = item.querySelector('.job-check');
+            if (!check) continue;
+            if (pile.isComplete()) {
+                item.classList.add('done');
+                check.textContent = '✨';
+            } else {
+                item.classList.remove('done');
+                check.textContent = '○';
+            }
+        }
     }
     
     /**
@@ -171,6 +307,10 @@ class Game {
         // 位置を更新（ワールド座標）
         this.partyX += this.partyVelocityX;
         this.partyY += this.partyVelocityY;
+
+        const clamped = this.stage.clamp(this.partyX, this.partyY);
+        this.partyX = clamped.x;
+        this.partyY = clamped.y;
         
         // カメラをパーティーに追従
         this.cameraX = this.partyX;
@@ -184,6 +324,127 @@ class Game {
         
         // 各キャラクターを更新
         this.formation.update();
+
+        if (!this.cleared) {
+            this.updateWork();
+            this.updateCombat();
+            this.updateEnemies();
+            this.updateRescue();
+            this.checkClear();
+        }
+
+        this.particles.update();
+        if (this.hintTimer > 0) this.hintTimer -= 1;
+        if (this.hintText) {
+            this.hintText.style.opacity = this.hintTimer > 0 ? '1' : '0';
+        }
+    }
+
+    updateWork() {
+        const front = this.formation.getFrontCharacter();
+        for (const member of this.formation.members) {
+            member.isWorking = false;
+        }
+
+        this.workTextTimer -= 1;
+
+        for (const pile of this.jobPiles) {
+            pile.update();
+            if (pile.justCompleted) {
+                pile.justCompleted = false;
+                this.particles.spawnComplete(pile.x, pile.y);
+                this.particles.addText(pile.x, pile.y - 40, `${pile.label} 完了！`, '#ca8a04');
+                this.updateJobHud();
+            }
+            if (pile.isComplete()) continue;
+
+            let anyoneWorking = false;
+            for (const member of this.formation.members) {
+                if (!pile.containsPoint(member.x, member.y, member.radius)) continue;
+                const isFront = member === front;
+                const power = member.getWorkPower(pile.jobType, isFront);
+                pile.applyWork(power);
+                member.isWorking = true;
+                member.workFlash = 8;
+                anyoneWorking = true;
+
+                if (Math.random() < 0.18) {
+                    this.particles.spawnWork(
+                        (member.x + pile.x) / 2,
+                        (member.y + pile.y) / 2,
+                        member.specialty
+                    );
+                }
+            }
+
+            if (anyoneWorking && this.workTextTimer <= 0 && front && front.isWorking) {
+                const rank = front.getAptitudeRank(pile.jobType);
+                const label = rank === '得意' ? front.attackLabel : (rank === '苦手' ? 'がんばります…' : 'おてつだい');
+                this.particles.addText(front.x, front.y - 34, label, front.color);
+                this.workTextTimer = 50;
+            }
+        }
+    }
+
+    updateCombat() {
+        const front = this.formation.getFrontCharacter();
+        for (const member of this.formation.members) {
+            if (member.attackCooldown > 0) continue;
+            const isFront = member === front;
+            const range = isFront ? 88 : 68;
+            let closest = null;
+            let closestDist = range;
+            for (const enemy of this.enemies) {
+                if (!enemy.alive) continue;
+                const dx = enemy.x - member.x;
+                const dy = enemy.y - member.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < closestDist) {
+                    closest = enemy;
+                    closestDist = dist;
+                }
+            }
+            if (!closest) continue;
+
+            const damage = isFront ? 8 : 3;
+            const defeated = closest.takeDamage(damage);
+            member.attackCooldown = isFront ? 22 : 38;
+            member.isAttacking = 10;
+            this.particles.spawnAttack(
+                (member.x + closest.x) / 2,
+                (member.y + closest.y) / 2,
+                member.specialty
+            );
+            if (Math.random() < 0.35) {
+                this.particles.addText(member.x, member.y - 30, member.attackLabel, member.color);
+            }
+            if (defeated) {
+                this.particles.spawnDefeat(closest.x, closest.y);
+                this.particles.addText(closest.x, closest.y - 10, 'キレイ！', '#fbbf24');
+            }
+        }
+    }
+
+    updateEnemies() {
+        for (const enemy of this.enemies) {
+            enemy.update(this.partyX, this.partyY);
+        }
+    }
+
+    updateRescue() {
+        if (!this.rescue) return;
+        const shouldOffer = this.rescue.update(this.enemies, this.partyX, this.partyY);
+        if (shouldOffer) this.openSwapOffer();
+    }
+
+    checkClear() {
+        if (this.jobPiles.length === 0) return;
+        const allDone = this.jobPiles.every((pile) => pile.isComplete());
+        if (!allDone) return;
+        this.cleared = true;
+        if (this.clearOverlay) this.clearOverlay.classList.remove('hidden');
+        this.particles.spawnComplete(this.partyX, this.partyY);
+        this.updateJobHud();
     }
     
     /**
@@ -200,12 +461,7 @@ class Game {
      * 描画処理
      */
     draw() {
-        // 背景をクリア
-        this.ctx.fillStyle = '#2a2a2a';
-        this.ctx.fillRect(0, 0, this.width, this.height);
-        
-        // グリッド描画（参考用、カメラに追従）
-        this.drawGrid();
+        this.stage.drawGround(this.ctx, this.cameraX, this.cameraY, this.width, this.height);
         
         // カメラの変換を保存
         this.ctx.save();
@@ -216,80 +472,26 @@ class Game {
             this.width / 2 - this.cameraX,
             this.height / 2 - this.cameraY
         );
+
+        this.stage.drawWorld(this.ctx);
+
+        for (const pile of this.jobPiles) {
+            if (pile.isComplete()) pile.draw(this.ctx);
+        }
+        for (const pile of this.jobPiles) {
+            if (!pile.isComplete()) pile.draw(this.ctx);
+        }
+        for (const enemy of this.enemies) {
+            enemy.draw(this.ctx);
+        }
+        if (this.rescue) this.rescue.draw(this.ctx);
         
         // 隊列を描画（ワールド座標）
         this.formation.draw(this.ctx);
-        
-        // パーティーの中心点を表示（デバッグ用）
-        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-        this.ctx.beginPath();
-        this.ctx.arc(this.partyX, this.partyY, 3, 0, Math.PI * 2);
-        this.ctx.fill();
+
+        this.particles.draw(this.ctx);
         
         // カメラの変換を復元
-        this.ctx.restore();
-        
-        // 画面中央のクロスヘア（参考用）
-        this.drawCenterCrosshair();
-    }
-    
-    /**
-     * グリッド描画
-     */
-    drawGrid() {
-        this.ctx.save();
-        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
-        this.ctx.lineWidth = 1;
-        
-        const gridSize = 50;
-        
-        // カメラ位置を考慮したオフセット
-        const offsetX = (this.width / 2 - this.cameraX) % gridSize;
-        const offsetY = (this.height / 2 - this.cameraY) % gridSize;
-        
-        // 縦線
-        for (let x = offsetX; x < this.width; x += gridSize) {
-            this.ctx.beginPath();
-            this.ctx.moveTo(x, 0);
-            this.ctx.lineTo(x, this.height);
-            this.ctx.stroke();
-        }
-        
-        // 横線
-        for (let y = offsetY; y < this.height; y += gridSize) {
-            this.ctx.beginPath();
-            this.ctx.moveTo(0, y);
-            this.ctx.lineTo(this.width, y);
-            this.ctx.stroke();
-        }
-        
-        this.ctx.restore();
-    }
-    
-    /**
-     * 画面中央のクロスヘア描画
-     */
-    drawCenterCrosshair() {
-        this.ctx.save();
-        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
-        this.ctx.lineWidth = 2;
-        
-        const centerX = this.width / 2;
-        const centerY = this.height / 2;
-        const size = 15;
-        
-        // 横線
-        this.ctx.beginPath();
-        this.ctx.moveTo(centerX - size, centerY);
-        this.ctx.lineTo(centerX + size, centerY);
-        this.ctx.stroke();
-        
-        // 縦線
-        this.ctx.beginPath();
-        this.ctx.moveTo(centerX, centerY - size);
-        this.ctx.lineTo(centerX, centerY + size);
-        this.ctx.stroke();
-        
         this.ctx.restore();
     }
     
