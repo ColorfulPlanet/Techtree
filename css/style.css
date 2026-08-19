@@ -73,7 +73,7 @@ body {
 #formationControl {
     position: absolute;
     right: 20px;
-    bottom: 60px;
+    bottom: 120px;
     z-index: 100;
     pointer-events: auto;
     display: flex;
