@@ -122,10 +122,33 @@ class Maid extends Character {
      * 仕事タイプに対する処理量（1フレームあたり）
      * 先頭=メイン作業、後衛=サブ作業
      */
-    getWorkPower(jobType, isFront) {
+    getWorkPower(jobType, isFront, context = {}) {
         const apt = this.aptitude[jobType] ?? APTITUDE.weak;
         const roleMul = isFront ? 1.0 : 0.22;
-        return 0.22 * apt * roleMul;
+        let power = 0.22 * apt * roleMul;
+        const spread = context.spread ?? 0.5;
+        const pileSize = context.pileSize || 'normal';
+        const workers = context.workers ?? 1;
+
+        if (isFront && this.specialty === 'cooking') {
+            power *= pileSize === 'large' ? 2.3 : 1.35;
+        }
+        if (isFront && this.specialty === 'cleaning') {
+            power *= pileSize === 'small' ? 1.8 : 1.05;
+        }
+        if (isFront && this.specialty === 'laundry' && pileSize !== 'large') {
+            power *= 1.2;
+        }
+        if (spread <= 0.34 && workers >= 2 && pileSize === 'large') {
+            power *= 1.7;
+        }
+        if (spread >= 0.66 && pileSize === 'small') {
+            power *= 1.45;
+        }
+        if (spread >= 0.66 && pileSize === 'large') {
+            power *= 0.7;
+        }
+        return power;
     }
 
     getAptitudeRank(jobType) {

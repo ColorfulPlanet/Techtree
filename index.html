@@ -40,6 +40,8 @@
         <!-- デバッグ情報表示 -->
         <div id="debugInfo">
             <div>先頭: <span id="frontCharacter">サクラ</span></div>
+            <div>攻撃: <span id="frontAttack">モップ薙ぎ払い</span></div>
+            <div>隊列: <span id="spreadMode">標準</span></div>
             <div>隊列間隔: <span id="formationSpacing">100</span></div>
         </div>
 
@@ -68,7 +70,7 @@
             </div>
         </div>
 
-        <div id="hintText">得意なメイドを先頭にして、仕事の山を片付けよう</div>
+        <div id="hintText">隊長で攻撃が変わる／隊列で集中と分散</div>
 
         <div id="swapOverlay" class="hidden">
             <div class="clear-card">
@@ -95,6 +97,7 @@
     <script src="js/input.js"></script>
     <script src="js/joystick.js"></script>
     <script src="js/particles.js"></script>
+    <script src="js/combat.js"></script>
     <script src="js/jobPile.js"></script>
     <script src="js/enemy.js"></script>
     <script src="js/stage.js"></script>

@@ -3,14 +3,11 @@
  * 従来の「敵基地」に相当する、溜まった家事の山。
  */
 class JobPile {
-    constructor(jobType, x, y) {
+    constructor(jobType, x, y, options = {}) {
         this.jobType = jobType;
         this.x = x;
         this.y = y;
-        this.radius = 52;
-        this.workRadius = 120;
-        this.maxWork = 100;
-        this.remaining = 100;
+        this.pileSize = options.size || 'normal';
         this.completeFx = 0;
         this.wobble = Math.random() * Math.PI * 2;
         this.justCompleted = false;
@@ -20,12 +17,34 @@ class JobPile {
         this.icon = meta.icon;
         this.color = meta.color;
         this.recommend = meta.recommend;
+        this.visualScale = 1;
+
+        if (this.pileSize === 'small') {
+            this.radius = 26;
+            this.workRadius = 78;
+            this.maxWork = 34;
+            this.visualScale = 0.52;
+            this.label = meta.smallLabel;
+            this.recommend = 'サクラ＋広い';
+        } else if (this.pileSize === 'large') {
+            this.radius = 82;
+            this.workRadius = 102;
+            this.maxWork = 240;
+            this.visualScale = 1.6;
+            this.label = meta.largeLabel;
+            this.recommend = 'ココ＋狭い';
+        } else {
+            this.radius = 52;
+            this.workRadius = 120;
+            this.maxWork = 100;
+        }
+        this.remaining = this.maxWork;
     }
 
     static META = {
-        cleaning: { label: '掃除の山', icon: '🧹', color: '#f9a8d4', recommend: 'サクラ' },
-        cooking: { label: '料理の山', icon: '🍳', color: '#fdba74', recommend: 'ココ' },
-        laundry: { label: '洗濯の山', icon: '🧺', color: '#7dd3fc', recommend: 'アオイ' }
+        cleaning: { label: '掃除の山', smallLabel: '小さなゴミ', largeLabel: '巨大な掃除の山', icon: '🧹', color: '#f9a8d4', recommend: 'サクラ' },
+        cooking: { label: '料理の山', smallLabel: '食器のかけら', largeLabel: '巨大な料理の山', icon: '🍳', color: '#fdba74', recommend: 'ココ' },
+        laundry: { label: '洗濯の山', smallLabel: '洗濯物', largeLabel: '巨大な洗濯の山', icon: '🧺', color: '#7dd3fc', recommend: 'アオイ' }
     };
 
     isComplete() {
@@ -104,7 +123,7 @@ class JobPile {
     }
 
     drawMessyState(ctx) {
-        const shrink = 0.55 + this.remaining / this.maxWork * 0.45;
+        const shrink = (0.55 + this.remaining / this.maxWork * 0.45) * this.visualScale;
         ctx.save();
         ctx.translate(this.x, this.y);
         ctx.scale(shrink, shrink);
@@ -193,10 +212,10 @@ class JobPile {
     }
 
     drawGauge(ctx) {
-        const w = 132;
-        const h = 22;
+        const w = this.pileSize === 'small' ? 72 : (this.pileSize === 'large' ? 150 : 132);
+        const h = this.pileSize === 'small' ? 14 : 22;
         const gx = this.x - w / 2;
-        const gy = this.y - 78;
+        const gy = this.y - (this.pileSize === 'small' ? 48 : 78);
         const ratio = Math.max(0, this.remaining / this.maxWork);
         const percent = this.isComplete() ? 0 : Math.max(1, Math.ceil(ratio * 100));
 
@@ -254,21 +273,22 @@ class JobPile {
 
     drawLabel(ctx) {
         ctx.save();
-        ctx.font = 'bold 14px sans-serif';
+        ctx.font = this.pileSize === 'small' ? 'bold 11px sans-serif' : 'bold 14px sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'bottom';
         ctx.lineWidth = 4;
         ctx.strokeStyle = 'rgba(255,255,255,0.92)';
         const text = this.isComplete() ? `${this.icon} ピカピカ！` : `${this.icon} ${this.label}`;
         ctx.fillStyle = this.isComplete() ? '#ca8a04' : '#6b4f6b';
-        ctx.strokeText(text, this.x, this.y - 102);
-        ctx.fillText(text, this.x, this.y - 102);
+        const labelY = this.y - (this.pileSize === 'small' ? 66 : 102);
+        ctx.strokeText(text, this.x, labelY);
+        ctx.fillText(text, this.x, labelY);
 
         if (!this.isComplete()) {
-            ctx.font = '11px sans-serif';
+            ctx.font = this.pileSize === 'small' ? '9px sans-serif' : '11px sans-serif';
             ctx.fillStyle = '#9d7a9d';
-            ctx.strokeText(`おすすめ ${this.recommend}`, this.x, this.y - 50);
-            ctx.fillText(`おすすめ ${this.recommend}`, this.x, this.y - 50);
+            ctx.strokeText(`おすすめ ${this.recommend}`, this.x, this.y - (this.pileSize === 'small' ? 34 : 50));
+            ctx.fillText(`おすすめ ${this.recommend}`, this.x, this.y - (this.pileSize === 'small' ? 34 : 50));
         }
         ctx.restore();
     }

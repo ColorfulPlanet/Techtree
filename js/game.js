@@ -35,13 +35,16 @@ class Game {
         this.partyVelocityX = 0;
         this.partyVelocityY = 0;
         this.partyMaxSpeed = 3;
+        this.basePartyMaxSpeed = 3;
         this.partyAcceleration = 0.5;
         this.partyFriction = 0.85;
         
         // UI要素
         this.debugInfo = {
             frontCharacter: document.getElementById('frontCharacter'),
-            formationSpacing: document.getElementById('formationSpacing')
+            formationSpacing: document.getElementById('formationSpacing'),
+            frontAttack: document.getElementById('frontAttack'),
+            spreadMode: document.getElementById('spreadMode')
         };
         this.jobHudItems = {
             cleaning: document.getElementById('jobCleaning'),
@@ -54,6 +57,8 @@ class Game {
         // メイドゲームシステム（隊列ロジックとは独立）
         this.stage = new Stage();
         this.particles = new ParticleSystem();
+        this.combat = new CombatSystem();
+        this.lastSpreadMode = null;
         this.jobPiles = [];
         this.enemies = [];
         this.rescue = null;
@@ -230,19 +235,26 @@ class Game {
         // ローテーション時のコールバック
         this.inputHandler.setRotateCallback((frontChar) => {
             this.updateUI();
-            if (frontChar && frontChar.workLabel) {
+            if (frontChar) {
+                const name = this.combat.getAttackName(frontChar);
                 this.particles.addText(
                     frontChar.x,
-                    frontChar.y - 36,
-                    `${frontChar.name}が先頭！`,
+                    frontChar.y - 40,
+                    `${frontChar.name}：${name}`,
                     frontChar.color
                 );
             }
         });
         
-        // 間隔変更時のコールバック
         this.inputHandler.setSpacingChangeCallback((spacing) => {
             this.updateUI();
+            const mode = this.combat.getSpreadMode(this.formation);
+            if (mode !== this.lastSpreadMode) {
+                this.lastSpreadMode = mode;
+                const front = this.formation.getFrontCharacter();
+                const label = mode === 'narrow' ? '集中！' : (mode === 'wide' ? '分散！' : '標準');
+                if (front) this.particles.addText(front.x, front.y - 42, label, '#a78bfa');
+            }
         });
     }
     
@@ -253,27 +265,42 @@ class Game {
         const frontChar = this.formation.getFrontCharacter();
         if (frontChar) {
             this.debugInfo.frontCharacter.textContent = frontChar.name;
+            if (this.debugInfo.frontAttack) {
+                this.debugInfo.frontAttack.textContent = this.combat.getAttackName(frontChar);
+            }
         }
         
         this.debugInfo.formationSpacing.textContent = 
             Math.round(this.formation.formationSpacing);
+        if (this.debugInfo.spreadMode) {
+            const mode = this.combat.getSpreadMode(this.formation);
+            this.debugInfo.spreadMode.textContent =
+                mode === 'narrow' ? '狭い・集中' : (mode === 'wide' ? '広い・分散' : '標準');
+        }
 
         this.updateJobHud();
     }
 
     updateJobHud() {
+        const totals = {};
         for (const pile of this.jobPiles) {
-            const item = this.jobHudItems[pile.jobType];
+            if (!totals[pile.jobType]) totals[pile.jobType] = { remaining: 0, max: 0 };
+            totals[pile.jobType].remaining += pile.remaining;
+            totals[pile.jobType].max += pile.maxWork;
+        }
+        for (const [jobType, item] of Object.entries(this.jobHudItems)) {
             if (!item) continue;
+            const total = totals[jobType];
+            if (!total) continue;
             const check = item.querySelector('.job-check');
             const remain = item.querySelector('.job-remain');
             const fill = item.querySelector('.job-bar-fill');
-            const ratio = Math.max(0, pile.remaining / pile.maxWork);
-            const percent = pile.isComplete() ? 0 : Math.max(1, Math.ceil(ratio * 100));
-            if (fill) fill.style.width = `${pile.isComplete() ? 0 : percent}%`;
-            if (remain) remain.textContent = pile.isComplete() ? '完了' : `残り ${percent}%`;
+            const done = total.remaining <= 0;
+            const percent = done ? 0 : Math.max(1, Math.ceil(total.remaining / total.max * 100));
+            if (fill) fill.style.width = `${percent}%`;
+            if (remain) remain.textContent = done ? '完了' : `残り ${percent}%`;
             if (!check) continue;
-            if (pile.isComplete()) {
+            if (done) {
                 item.classList.add('done');
                 check.textContent = '✨';
             } else {
@@ -289,6 +316,10 @@ class Game {
     update() {
         // ジョイスティック入力を取得
         const input = this.joystick.getInput();
+        const front = this.formation.getFrontCharacter();
+        this.partyMaxSpeed = (front && front.specialty === 'cleaning')
+            ? this.basePartyMaxSpeed * 1.22
+            : this.basePartyMaxSpeed;
         
         // 入力に応じて加速
         if (input.active && (Math.abs(input.x) > 0 || Math.abs(input.y) > 0)) {
@@ -365,11 +396,18 @@ class Game {
             }
             if (pile.isComplete()) continue;
 
+            const workers = this.formation.members.filter((member) =>
+                pile.containsPoint(member.x, member.y, member.radius)
+            );
+            const spread = this.combat.getSpread(this.formation);
             let anyoneWorking = false;
-            for (const member of this.formation.members) {
-                if (!pile.containsPoint(member.x, member.y, member.radius)) continue;
+            for (const member of workers) {
                 const isFront = member === front;
-                const power = member.getWorkPower(pile.jobType, isFront);
+                const power = member.getWorkPower(pile.jobType, isFront, {
+                    spread,
+                    pileSize: pile.pileSize,
+                    workers: workers.length
+                });
                 pile.applyWork(power);
                 member.isWorking = true;
                 member.workFlash = 8;
@@ -396,42 +434,7 @@ class Game {
     }
 
     updateCombat() {
-        const front = this.formation.getFrontCharacter();
-        for (const member of this.formation.members) {
-            if (member.attackCooldown > 0) continue;
-            const isFront = member === front;
-            const range = isFront ? 88 : 68;
-            let closest = null;
-            let closestDist = range;
-            for (const enemy of this.enemies) {
-                if (!enemy.alive) continue;
-                const dx = enemy.x - member.x;
-                const dy = enemy.y - member.y;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                if (dist < closestDist) {
-                    closest = enemy;
-                    closestDist = dist;
-                }
-            }
-            if (!closest) continue;
-
-            const damage = isFront ? 8 : 3;
-            const defeated = closest.takeDamage(damage);
-            member.attackCooldown = isFront ? 22 : 38;
-            member.isAttacking = 10;
-            this.particles.spawnAttack(
-                (member.x + closest.x) / 2,
-                (member.y + closest.y) / 2,
-                member.specialty
-            );
-            if (Math.random() < 0.35) {
-                this.particles.addText(member.x, member.y - 30, member.attackLabel, member.color);
-            }
-            if (defeated) {
-                this.particles.spawnDefeat(closest.x, closest.y);
-                this.particles.addText(closest.x, closest.y - 10, 'キレイ！', '#fbbf24');
-            }
-        }
+        this.combat.update(this.formation, this.enemies, this.particles);
     }
 
     updateEnemies() {
@@ -497,6 +500,7 @@ class Game {
         
         // 隊列を描画（ワールド座標）
         this.formation.draw(this.ctx);
+        this.combat.draw(this.ctx);
 
         this.particles.draw(this.ctx);
         

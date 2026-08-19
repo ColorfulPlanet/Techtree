@@ -1,14 +1,12 @@
 /**
- * 邪魔者（ホコリモンスター）
- * 倒すというより、仕事の邪魔をするものを退治する。
+ * 邪魔者
+ * 小型の群れと、狭い隊列向きの大型を用意する。
  */
 class DustMonster {
-    constructor(x, y) {
+    constructor(x, y, kind = 'small') {
         this.x = x;
         this.y = y;
-        this.radius = 22;
-        this.maxHp = 24;
-        this.hp = this.maxHp;
+        this.kind = kind;
         this.alive = true;
         this.anim = Math.random() * Math.PI * 2;
         this.wanderAngle = Math.random() * Math.PI * 2;
@@ -19,6 +17,20 @@ class DustMonster {
         this.deathTimer = 0;
         this.homeX = x;
         this.homeY = y;
+        this.slowTimer = 0;
+
+        if (kind === 'large') {
+            this.radius = 36;
+            this.maxHp = 120;
+            this.drawScale = 2.05;
+            this.chaseSpeed = 0.028;
+        } else {
+            this.radius = 16;
+            this.maxHp = 12;
+            this.drawScale = 1.15;
+            this.chaseSpeed = 0.05;
+        }
+        this.hp = this.maxHp;
     }
 
     update(partyX, partyY) {
@@ -29,6 +41,7 @@ class DustMonster {
 
         this.anim += 0.08;
         if (this.hitFlash > 0) this.hitFlash -= 1;
+        if (this.slowTimer > 0) this.slowTimer -= 1;
 
         this.wanderTimer -= 1;
         if (this.wanderTimer <= 0) {
@@ -39,15 +52,16 @@ class DustMonster {
         const dx = partyX - this.x;
         const dy = partyY - this.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
+        const slow = this.slowTimer > 0 ? 0.35 : 1;
 
-        if (dist < 220 && dist > 1) {
-            this.vx += (dx / dist) * 0.04;
-            this.vy += (dy / dist) * 0.04;
+        if (dist < (this.kind === 'large' ? 280 : 220) && dist > 1) {
+            this.vx += (dx / dist) * this.chaseSpeed * slow;
+            this.vy += (dy / dist) * this.chaseSpeed * slow;
         } else {
             const hdx = this.homeX - this.x;
             const hdy = this.homeY - this.y;
-            this.vx += Math.cos(this.wanderAngle) * 0.03 + hdx * 0.001;
-            this.vy += Math.sin(this.wanderAngle) * 0.03 + hdy * 0.001;
+            this.vx += (Math.cos(this.wanderAngle) * 0.03 + hdx * 0.001) * slow;
+            this.vy += (Math.sin(this.wanderAngle) * 0.03 + hdy * 0.001) * slow;
         }
 
         this.vx *= 0.92;
@@ -56,12 +70,19 @@ class DustMonster {
         this.y += this.vy;
     }
 
+    applyHit(fromX, fromY, knockback, slow) {
+        const dx = this.x - fromX;
+        const dy = this.y - fromY;
+        const dist = Math.hypot(dx, dy) || 1;
+        this.vx += (dx / dist) * knockback;
+        this.vy += (dy / dist) * knockback;
+        if (slow > 0) this.slowTimer = Math.max(this.slowTimer, slow);
+    }
+
     takeDamage(amount) {
         if (!this.alive) return false;
         this.hp -= amount;
         this.hitFlash = 8;
-        this.vx *= 0.3;
-        this.vy *= 0.3;
         if (this.hp <= 0) {
             this.hp = 0;
             this.alive = false;
@@ -75,7 +96,7 @@ class DustMonster {
         if (!this.alive && this.deathTimer <= 0) return;
 
         const puff = Math.sin(this.anim * 2.4) * 2;
-        const scale = (this.alive ? 1 : Math.max(0.1, this.deathTimer / 24)) * 1.35;
+        const scale = (this.alive ? 1 : Math.max(0.1, this.deathTimer / 24)) * this.drawScale;
         const alpha = this.alive ? 1 : this.deathTimer / 24;
 
         ctx.save();
@@ -88,8 +109,8 @@ class DustMonster {
         ctx.ellipse(0, 14, 14, 5, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        const body = this.hitFlash > 0 ? '#fff7ed' : '#e2e8f0';
-        const dark = this.hitFlash > 0 ? '#fed7aa' : '#cbd5e1';
+        const body = this.hitFlash > 0 ? '#fff7ed' : (this.kind === 'large' ? '#cbd5e1' : '#e2e8f0');
+        const dark = this.hitFlash > 0 ? '#fed7aa' : '#94a3b8';
         ctx.fillStyle = body;
         ctx.beginPath();
         ctx.arc(-8, -2 + puff, 10, 0, Math.PI * 2);
@@ -97,6 +118,13 @@ class DustMonster {
         ctx.arc(0, 4, 13, 0, Math.PI * 2);
         ctx.arc(-2, -10, 9, 0, Math.PI * 2);
         ctx.fill();
+
+        if (this.kind === 'large') {
+            ctx.fillStyle = '#64748b';
+            ctx.beginPath();
+            ctx.ellipse(0, 2, 11, 8, 0, 0, Math.PI * 2);
+            ctx.fill();
+        }
 
         ctx.fillStyle = dark;
         ctx.beginPath();
@@ -115,12 +143,37 @@ class DustMonster {
         ctx.arc(5.6, -2.8, 0.6, 0, Math.PI * 2);
         ctx.fill();
 
-        ctx.strokeStyle = '#94a3b8';
+        ctx.strokeStyle = this.slowTimer > 0 ? '#38bdf8' : '#94a3b8';
         ctx.lineWidth = 1.2;
         ctx.beginPath();
         ctx.arc(0, 2, 3, 0.2, Math.PI - 0.2);
         ctx.stroke();
 
+        ctx.restore();
+
+        if (this.alive && (this.kind === 'large' || this.hp < this.maxHp)) {
+            this.drawHp(ctx);
+        }
+    }
+
+    drawHp(ctx) {
+        const w = this.kind === 'large' ? 54 : 28;
+        const h = 5;
+        const x = this.x - w / 2;
+        const y = this.y - (this.kind === 'large' ? 48 : 28);
+        ctx.save();
+        ctx.fillStyle = 'rgba(255,255,255,0.85)';
+        ctx.fillRect(x - 1, y - 1, w + 2, h + 2);
+        ctx.fillStyle = '#e2e8f0';
+        ctx.fillRect(x, y, w, h);
+        ctx.fillStyle = this.kind === 'large' ? '#fb7185' : '#67e8f9';
+        ctx.fillRect(x, y, w * (this.hp / this.maxHp), h);
+        if (this.kind === 'large') {
+            ctx.font = 'bold 10px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#be123c';
+            ctx.fillText('大型', this.x, y - 3);
+        }
         ctx.restore();
     }
 }
