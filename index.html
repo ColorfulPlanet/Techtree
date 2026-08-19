@@ -13,26 +13,22 @@
         <!-- 仮想ジョイスティックエリア -->
         <div id="joystickArea"></div>
         
-        <!-- 隊列操作UI -->
+        <!-- 統合された隊列操作UI -->
         <div id="formationControl">
-            <div id="formationButton">
-                <div class="button-label">隊列</div>
+            <div class="label-top">広</div>
+            <div id="formationSlider">
+                <div id="formationTrack"></div>
+                <div id="formationButton">
+                    <div class="button-label">隊列</div>
+                </div>
             </div>
+            <div class="label-bottom">狭</div>
         </div>
         
         <!-- デバッグ情報表示 -->
         <div id="debugInfo">
             <div>先頭: <span id="frontCharacter">A</span></div>
             <div>隊列間隔: <span id="formationSpacing">100</span></div>
-        </div>
-        
-        <!-- 隊列間隔ゲージ -->
-        <div id="spacingGauge">
-            <div class="gauge-label">広</div>
-            <div class="gauge-bar">
-                <div id="gaugeIndicator"></div>
-            </div>
-            <div class="gauge-label">狭</div>
         </div>
     </div>
 

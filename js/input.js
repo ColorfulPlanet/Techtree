@@ -1,10 +1,11 @@
 /**
- * タッチ入力処理
- * タップとスライドを判定し、隊列操作を行う
+ * 統合された隊列操作入力処理
+ * タップでローテーション、スライダー上でドラッグして間隔変更
  */
 class FormationInputHandler {
-    constructor(buttonElement, formationManager) {
+    constructor(buttonElement, sliderElement, formationManager) {
         this.button = buttonElement;
+        this.slider = sliderElement;
         this.formation = formationManager;
         
         // タッチ状態
@@ -14,13 +15,15 @@ class FormationInputHandler {
         this.touchStartTime = 0;
         
         // タップ判定の閾値（ピクセル）
-        this.tapThreshold = 50;
+        this.tapThreshold = 15;
         
-        // スライド感度
-        this.slideSensitivity = 0.5;
+        // スライダーの範囲
+        this.sliderTop = 0;
+        this.sliderBottom = 0;
+        this.sliderHeight = 0;
         
-        // 初期間隔を記憶
-        this.initialSpacing = 0;
+        // 現在のボタン位置（0.0～1.0、0が上）
+        this.buttonPosition = 0.5;
         
         // イベントリスナーを設定
         this.setupEventListeners();
@@ -28,6 +31,43 @@ class FormationInputHandler {
         // コールバック
         this.onRotate = null;
         this.onSpacingChange = null;
+        
+        // 初期化
+        this.updateSliderBounds();
+        this.updateButtonPosition();
+    }
+    
+    /**
+     * スライダーの境界を更新
+     */
+    updateSliderBounds() {
+        const rect = this.slider.getBoundingClientRect();
+        this.sliderTop = rect.top;
+        this.sliderBottom = rect.bottom;
+        this.sliderHeight = rect.height;
+    }
+    
+    /**
+     * ボタンの位置を更新
+     */
+    updateButtonPosition() {
+        // 0.0（上）～1.0（下）の位置をパーセンテージに変換
+        const percent = this.buttonPosition * 100;
+        
+        // CSSのtopで位置を設定（中央揃えのため-50%のtranslateYを考慮）
+        this.button.style.top = `${percent}%`;
+        
+        // 位置から隊列間隔を計算（上が広い、下が狭い）
+        // 0.0（上） → max、1.0（下） → min
+        const spacing = this.formation.formationSpacingMax - 
+            (this.formation.formationSpacingMax - this.formation.formationSpacingMin) * this.buttonPosition;
+        
+        this.formation.setFormationSpacing(spacing);
+        
+        // コールバック実行
+        if (this.onSpacingChange) {
+            this.onSpacingChange(spacing);
+        }
     }
     
     /**
@@ -44,6 +84,9 @@ class FormationInputHandler {
         this.button.addEventListener('mousedown', (e) => this.handleMouseDown(e));
         document.addEventListener('mousemove', (e) => this.handleMouseMove(e));
         document.addEventListener('mouseup', (e) => this.handleMouseUp(e));
+        
+        // リサイズ時にスライダーの境界を更新
+        window.addEventListener('resize', () => this.updateSliderBounds());
     }
     
     /**
@@ -107,11 +150,11 @@ class FormationInputHandler {
         this.touchCurrentY = clientY;
         this.touchStartTime = Date.now();
         
-        // 現在の隊列間隔を記憶
-        this.initialSpacing = this.formation.formationSpacing;
+        // スライダーの境界を更新
+        this.updateSliderBounds();
         
         // ボタンのビジュアルフィードバック
-        this.button.style.transform = 'scale(0.95)';
+        this.button.style.transform = 'translateY(-50%) scale(0.95)';
     }
     
     /**
@@ -119,19 +162,19 @@ class FormationInputHandler {
      */
     moveTouch(clientY) {
         this.touchCurrentY = clientY;
-        const deltaY = this.touchStartY - this.touchCurrentY;
+        const deltaY = this.touchCurrentY - this.touchStartY;
         
-        // 一定以上の移動があればスライドとして扱う
-        if (Math.abs(deltaY) > 10) {
-            // スライド中は隊列間隔を変更
-            const spacingDelta = deltaY * this.slideSensitivity;
-            const newSpacing = this.initialSpacing + spacingDelta;
-            this.formation.setFormationSpacing(newSpacing);
+        // 一定以上の移動があればドラッグとして扱う
+        if (Math.abs(deltaY) > 5) {
+            // スライダー内での相対位置を計算
+            const relativeY = clientY - this.sliderTop;
+            let newPosition = relativeY / this.sliderHeight;
             
-            // コールバック実行
-            if (this.onSpacingChange) {
-                this.onSpacingChange(this.formation.formationSpacing);
-            }
+            // 0.0～1.0の範囲に制限
+            newPosition = Math.max(0.0, Math.min(1.0, newPosition));
+            
+            this.buttonPosition = newPosition;
+            this.updateButtonPosition();
         }
     }
     
@@ -158,7 +201,7 @@ class FormationInputHandler {
         this.isTouching = false;
         
         // ボタンのビジュアルフィードバックをリセット
-        this.button.style.transform = '';
+        this.button.style.transform = 'translateY(-50%)';
     }
     
     /**

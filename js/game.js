@@ -41,7 +41,6 @@ class Game {
             frontCharacter: document.getElementById('frontCharacter'),
             formationSpacing: document.getElementById('formationSpacing')
         };
-        this.gaugeIndicator = document.getElementById('gaugeIndicator');
         
         // 初期化
         this.init();
@@ -113,7 +112,8 @@ class Game {
      */
     setupFormationInput() {
         const button = document.getElementById('formationButton');
-        this.inputHandler = new FormationInputHandler(button, this.formation);
+        const slider = document.getElementById('formationSlider');
+        this.inputHandler = new FormationInputHandler(button, slider, this.formation);
         
         // ローテーション時のコールバック
         this.inputHandler.setRotateCallback((frontChar) => {
@@ -137,10 +137,6 @@ class Game {
         
         this.debugInfo.formationSpacing.textContent = 
             Math.round(this.formation.formationSpacing);
-        
-        // ゲージを更新
-        const normalized = this.formation.getFormationSpacingNormalized();
-        this.gaugeIndicator.style.height = `${normalized * 100}%`;
     }
     
     /**
