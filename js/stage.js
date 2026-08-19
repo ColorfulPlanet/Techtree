@@ -6,12 +6,8 @@ class Stage {
     constructor() {
         this.imageWidth = 1536;
         this.imageHeight = 1024;
-        this.bounds = {
-            minX: -this.imageWidth / 2 + 48,
-            maxX: this.imageWidth / 2 - 48,
-            minY: -this.imageHeight / 2 + 48,
-            maxY: this.imageHeight / 2 - 48
-        };
+        this.worldScale = 1.5;
+        this.updateBounds();
 
         this.background = new Image();
         this.backgroundReady = false;
@@ -19,8 +15,21 @@ class Stage {
             this.backgroundReady = true;
             this.imageWidth = this.background.naturalWidth || this.imageWidth;
             this.imageHeight = this.background.naturalHeight || this.imageHeight;
+            this.updateBounds();
         };
         this.background.src = 'assets/garden-background.jpg';
+    }
+
+    updateBounds() {
+        const w = this.imageWidth * this.worldScale;
+        const h = this.imageHeight * this.worldScale;
+        const pad = 48 * this.worldScale;
+        this.bounds = {
+            minX: -w / 2 + pad,
+            maxX: w / 2 - pad,
+            minY: -h / 2 + pad,
+            maxY: h / 2 - pad
+        };
     }
 
     /**
@@ -28,9 +37,13 @@ class Stage {
      */
     fromImage(px, py) {
         return {
-            x: px - this.imageWidth / 2,
-            y: py - this.imageHeight / 2
+            x: (px - this.imageWidth / 2) * this.worldScale,
+            y: (py - this.imageHeight / 2) * this.worldScale
         };
+    }
+
+    startPosition() {
+        return this.fromImage(768, 592);
     }
 
     createJobPiles() {
@@ -79,13 +92,15 @@ class Stage {
     }
 
     drawWorld(ctx) {
-        const x = -this.imageWidth / 2;
-        const y = -this.imageHeight / 2;
+        const w = this.imageWidth * this.worldScale;
+        const h = this.imageHeight * this.worldScale;
+        const x = -w / 2;
+        const y = -h / 2;
         if (this.backgroundReady) {
-            ctx.drawImage(this.background, x, y, this.imageWidth, this.imageHeight);
+            ctx.drawImage(this.background, x, y, w, h);
         } else {
             ctx.fillStyle = '#8ecf5d';
-            ctx.fillRect(x, y, this.imageWidth, this.imageHeight);
+            ctx.fillRect(x, y, w, h);
         }
     }
 }

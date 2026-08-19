@@ -80,10 +80,11 @@ class Game {
         this.createCharacters();
         
         // 初期位置を設定（ワールド座標の中心）
-        this.partyX = 0;
-        this.partyY = 80;
-        this.cameraX = 0;
-        this.cameraY = 80;
+        const start = this.stage.startPosition();
+        this.partyX = start.x;
+        this.partyY = start.y;
+        this.cameraX = start.x;
+        this.cameraY = start.y;
         
         this.formation.setCenterPosition(this.partyX, this.partyY);
         
@@ -125,12 +126,13 @@ class Game {
         const retry = document.getElementById('retryButton');
         if (retry) {
             retry.addEventListener('click', () => {
-                this.partyX = 0;
-                this.partyY = 80;
+                const start = this.stage.startPosition();
+                this.partyX = start.x;
+                this.partyY = start.y;
                 this.partyVelocityX = 0;
                 this.partyVelocityY = 0;
-                this.cameraX = 0;
-                this.cameraY = 80;
+                this.cameraX = start.x;
+                this.cameraY = start.y;
                 this.formation.members.length = 0;
                 this.formation.frontIndex = 0;
                 this.createCharacters();

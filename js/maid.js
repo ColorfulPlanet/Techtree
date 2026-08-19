@@ -157,12 +157,13 @@ class Maid extends Character {
         const y = this.y + bob;
         const face = this.facing;
 
+        if (isFront) this.drawCaptainMarker(ctx);
+
         ctx.save();
         ctx.translate(x, y);
         ctx.scale(face * this.drawScale, this.drawScale);
 
         this.drawShadow(ctx);
-        if (isFront) this.drawFrontGlow(ctx);
 
         this.drawDress(ctx);
         this.drawHairBack(ctx);
@@ -185,12 +186,24 @@ class Maid extends Character {
         ctx.restore();
     }
 
-    drawFrontGlow(ctx) {
+    drawCaptainMarker(ctx) {
+        const pulse = 0.82 + Math.sin(this.animTime * 3.4) * 0.18;
         ctx.save();
-        ctx.strokeStyle = 'rgba(251, 191, 36, 0.85)';
-        ctx.lineWidth = 3;
+        ctx.translate(this.x, this.y + 26);
+
+        ctx.fillStyle = `rgba(251, 191, 36, ${0.32 * pulse})`;
         ctx.beginPath();
-        ctx.ellipse(0, 18, 20, 7, 0, 0, Math.PI * 2);
+        ctx.ellipse(0, 0, 32, 14, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.strokeStyle = `rgba(251, 191, 36, ${0.95})`;
+        ctx.lineWidth = 4;
+        ctx.stroke();
+
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 24, 10, 0, 0, Math.PI * 2);
         ctx.stroke();
         ctx.restore();
     }
