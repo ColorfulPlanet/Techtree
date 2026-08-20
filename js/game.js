@@ -408,8 +408,13 @@ class Game {
         // 隊列の中心位置を更新
         this.formation.setCenterPosition(this.partyX, this.partyY);
         
-        // 移動方向を隊列に伝える
-        this.formation.setMovementDirection(this.partyVelocityX, this.partyVelocityY);
+        // 隊列の向きはスティック操作中だけ更新する。
+        // 慣性の速度方向で回し続けると、離したあともグルグル回り切ってしまう。
+        if (hasInput) {
+            this.formation.setMovementDirection(input.x, input.y);
+        } else {
+            this.formation.setMovementDirection(0, 0);
+        }
         
         // 各キャラクターを更新
         this.formation.update();

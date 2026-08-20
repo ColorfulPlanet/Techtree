@@ -26,8 +26,10 @@ class FormationManager {
         this.formationAngle = 0;
         this.targetAngle = 0;
         
-        // 回転速度の基本値（方向転換がぬるくなりすぎない範囲で抑える）
+        // 回転速度の基本値（小さな向き修正用）
         this.baseRotationSpeed = 0.10;
+        // 大きな方向転換でグルグル回らないよう、1フレームの最大回転量
+        this.maxRotationStep = 0.035;
     }
     
     /**
@@ -47,14 +49,17 @@ class FormationManager {
     
     /**
      * 移動方向を設定（隊列の向きを更新）
+     * 操作が終わった場合は、移動向きまで回り切らず現在の向きで止める。
      */
-    setMovementDirection(velocityX, velocityY) {
-        // 速度がほぼゼロの場合は向きを変えない
-        const speed = Math.sqrt(velocityX * velocityX + velocityY * velocityY);
-        if (speed < 0.1) return;
+    setMovementDirection(dirX, dirY) {
+        const speed = Math.sqrt(dirX * dirX + dirY * dirY);
+        if (speed < 0.1) {
+            this.targetAngle = this.formationAngle;
+            return;
+        }
         
         // 移動方向の角度を計算（上方向を0として時計回り）
-        this.targetAngle = Math.atan2(velocityX, -velocityY);
+        this.targetAngle = Math.atan2(dirX, -dirY);
     }
     
     /**
@@ -119,8 +124,12 @@ class FormationManager {
         const spacingFactor = this.formationSpacing / this.formationSpacingMax;
         const rotationSpeed = this.baseRotationSpeed * (1.0 - spacingFactor * 0.5);
         
-        // 角度を徐々に目標に近づける
-        this.formationAngle += angleDiff * rotationSpeed;
+        // 角度を徐々に目標に近づける（大回りは角速度を制限して勢いよく回らないようにする）
+        let step = angleDiff * rotationSpeed;
+        const maxStep = this.maxRotationStep * (1.0 - spacingFactor * 0.5);
+        if (step > maxStep) step = maxStep;
+        if (step < -maxStep) step = -maxStep;
+        this.formationAngle += step;
         
         // 角度を-π～πの範囲に正規化
         while (this.formationAngle > Math.PI) this.formationAngle -= Math.PI * 2;
