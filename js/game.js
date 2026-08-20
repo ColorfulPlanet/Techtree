@@ -418,6 +418,7 @@ class Game {
         
         // 各キャラクターを更新
         this.formation.update();
+        this.resolveCollisions();
 
         if (!this.cleared && !this.gameOver) {
             this.updateWork();
@@ -426,6 +427,8 @@ class Game {
             this.updateRescue();
             this.checkClear();
         }
+
+        this.resolveCollisions();
 
         for (const maid of this.downedMaids) maid.update();
         this.updatePartyHud();
@@ -458,13 +461,20 @@ class Game {
                 !member.downed && pile.containsPoint(member.x, member.y, member.radius)
             );
             const spread = this.combat.getSpread(this.formation);
+            const surrounded = this.combat.isEncircling(
+                pile.x,
+                pile.y,
+                this.formation.members,
+                pile.getWorkRadius() + 24
+            );
             let anyoneWorking = false;
             for (const member of workers) {
                 const isFront = member === front;
                 const power = member.getWorkPower(pile.jobType, isFront, {
                     spread,
                     pileSize: pile.pileSize,
-                    workers: workers.length
+                    workers: workers.length,
+                    surrounded
                 });
                 pile.applyWork(power);
                 member.isWorking = true;
@@ -482,9 +492,11 @@ class Game {
 
             if (anyoneWorking && this.workTextTimer <= 0 && front && front.isWorking) {
                 const rank = front.getAptitudeRank(pile.jobType);
-                const label = rank === '得意' ? front.attackLabel : (rank === '苦手' ? 'がんばります…' : 'おてつだい');
-                this.particles.addText(front.x, front.y - 34, label, front.color);
-                this.workTextTimer = 50;
+                const label = surrounded
+                    ? '囲み集中！'
+                    : (rank === '得意' ? front.attackLabel : (rank === '苦手' ? 'がんばります…' : 'おてつだい'));
+                this.particles.addText(front.x, front.y - 34, label, surrounded ? '#fbbf24' : front.color);
+                this.workTextTimer = surrounded ? 40 : 50;
             }
         }
 
@@ -493,6 +505,80 @@ class Game {
 
     updateCombat() {
         this.combat.update(this.formation, this.enemies, this.particles);
+    }
+
+    separateFromStatic(body, ox, oy, minDist) {
+        const dx = body.x - ox;
+        const dy = body.y - oy;
+        let dist = Math.hypot(dx, dy);
+        if (dist >= minDist) return false;
+        if (dist < 0.001) {
+            body.x += minDist;
+            return true;
+        }
+        const push = minDist - dist;
+        body.x += (dx / dist) * push;
+        body.y += (dy / dist) * push;
+        return true;
+    }
+
+    separateBodies(a, b, ar, br, aMass, bMass) {
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        let dist = Math.hypot(dx, dy);
+        const minDist = ar + br;
+        if (dist >= minDist) return false;
+        if (dist < 0.001) dist = 0.001;
+        const overlap = minDist - dist;
+        const nx = dx / dist;
+        const ny = dy / dist;
+        const total = aMass + bMass;
+        a.x -= nx * overlap * (bMass / total);
+        a.y -= ny * overlap * (bMass / total);
+        b.x += nx * overlap * (aMass / total);
+        b.y += ny * overlap * (aMass / total);
+        if (typeof b.vx === 'number') {
+            b.vx += nx * 0.4;
+            b.vy += ny * 0.4;
+        }
+        return true;
+    }
+
+    resolveCollisions() {
+        const maids = this.formation.members.filter((maid) => !maid.downed);
+        const piles = this.jobPiles.filter((pile) => !pile.isComplete());
+        const enemies = this.enemies.filter((enemy) => enemy.alive);
+
+        for (const maid of maids) {
+            for (const pile of piles) {
+                this.separateFromStatic(
+                    maid,
+                    pile.x,
+                    pile.y,
+                    pile.getCollisionRadius() + maid.radius
+                );
+            }
+            for (const enemy of enemies) {
+                this.separateBodies(maid, enemy, maid.radius, enemy.radius, 1, 1.15);
+            }
+            const clamped = this.stage.clamp(maid.x, maid.y);
+            maid.x = clamped.x;
+            maid.y = clamped.y;
+        }
+
+        for (const enemy of enemies) {
+            for (const pile of piles) {
+                this.separateFromStatic(
+                    enemy,
+                    pile.x,
+                    pile.y,
+                    pile.getCollisionRadius() + enemy.radius
+                );
+            }
+            const clamped = this.stage.clamp(enemy.x, enemy.y);
+            enemy.x = clamped.x;
+            enemy.y = clamped.y;
+        }
     }
 
     hurtMaid(maid, amount) {

@@ -15,6 +15,7 @@ const ATTACK_NAMES = {
 class CombatSystem {
     constructor() {
         this.effects = [];
+        this.encircleTextTimer = 0;
     }
 
     getSpread(formation) {
@@ -94,6 +95,35 @@ class CombatSystem {
         return best;
     }
 
+    /**
+     * 3人が対象を三角形で囲んでいるか
+     */
+    isEncircling(tx, ty, members, range) {
+        const nearby = [];
+        for (const member of members) {
+            if (!member || member.downed) continue;
+            if (Math.hypot(member.x - tx, member.y - ty) <= range) nearby.push(member);
+        }
+        if (nearby.length < 3) return false;
+
+        const [a, b, c] = nearby;
+        const ab = Math.hypot(a.x - b.x, a.y - b.y);
+        const bc = Math.hypot(b.x - c.x, b.y - c.y);
+        const ca = Math.hypot(c.x - a.x, c.y - a.y);
+        if (ab < 52 || bc < 52 || ca < 52) return false;
+
+        return this.pointInTriangle(tx, ty, a, b, c);
+    }
+
+    pointInTriangle(px, py, a, b, c) {
+        const sign = (p1, p2, p3) =>
+            (p1.x - p3.x) * (p2.y - p3.y) - (p2.x - p3.x) * (p1.y - p3.y);
+        const b1 = sign({ x: px, y: py }, a, b) < 0;
+        const b2 = sign({ x: px, y: py }, b, c) < 0;
+        const b3 = sign({ x: px, y: py }, c, a) < 0;
+        return (b1 === b2) && (b2 === b3);
+    }
+
     inSweep(maid, enemy, profile, angle) {
         const dx = enemy.x - maid.x;
         const dy = enemy.y - maid.y;
@@ -111,11 +141,20 @@ class CombatSystem {
         const mode = this.getSpreadMode(formation);
         const angle = formation.formationAngle;
         const claimed = new Set();
+        if (this.encircleTextTimer > 0) this.encircleTextTimer -= 1;
 
         const maxRange = 220;
         const sharedFocus = mode === 'narrow'
             ? this.pickSharedFocus(formation, enemies, maxRange)
             : null;
+
+        const encircled = new Set();
+        for (const enemy of enemies) {
+            if (!enemy.alive) continue;
+            if (this.isEncircling(enemy.x, enemy.y, formation.members, 96 + enemy.radius)) {
+                encircled.add(enemy);
+            }
+        }
 
         for (const member of formation.members) {
             if (member.downed) continue;
@@ -176,8 +215,15 @@ class CombatSystem {
                 particles.addText(member.x, member.y - 38, this.getAttackName(member), member.color);
             }
 
+            const surroundHit = targets.some((target) => encircled.has(target));
+            if (surroundHit && this.encircleTextTimer <= 0) {
+                particles.addText(targets[0].x, targets[0].y - 28, '囲み集中！', '#fbbf24');
+                this.encircleTextTimer = 70;
+            }
+
             for (const target of targets) {
-                const dmg = profile.damage * (target === targets[0] ? 1 : 0.55);
+                const focus = encircled.has(target) ? 1.7 : 1;
+                const dmg = profile.damage * (target === targets[0] ? 1 : 0.55) * focus;
                 const defeated = target.takeDamage(dmg);
                 target.applyHit(member.x, member.y, profile.knockback, profile.slow);
                 if (defeated) {

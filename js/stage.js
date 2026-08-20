@@ -51,16 +51,16 @@ class Stage {
         const cooking = this.fromImage(430, 310);
         const laundry = this.fromImage(1080, 720);
         const offsets = [
-            [0, 0],
-            [-70, -40],
-            [80, -30],
-            [-50, 55],
-            [60, 50]
+            [-210, -90],
+            [230, -70],
+            [-190, 130],
+            [210, 120]
         ];
         const cleaningBits = offsets.map(([ox, oy]) =>
             new JobPile(JOB_TYPES.cleaning, cleaningCenter.x + ox * this.worldScale, cleaningCenter.y + oy * this.worldScale, { size: 'small' })
         );
         return [
+            new JobPile(JOB_TYPES.cleaning, cleaningCenter.x, cleaningCenter.y, { size: 'large' }),
             ...cleaningBits,
             new JobPile(JOB_TYPES.cooking, cooking.x, cooking.y, { size: 'large' }),
             new JobPile(JOB_TYPES.laundry, laundry.x, laundry.y, { size: 'normal' }),

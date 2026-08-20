@@ -20,29 +20,32 @@ class JobPile {
         this.visualScale = 1;
 
         if (this.pileSize === 'small') {
-            this.radius = 26;
-            this.workRadius = 78;
+            this.baseRadius = 26;
+            this.workMargin = 52;
             this.maxWork = 34;
             this.visualScale = 0.52;
             this.label = meta.smallLabel;
             this.recommend = 'サクラ＋広い';
         } else if (this.pileSize === 'large') {
-            this.radius = 82;
-            this.workRadius = 102;
-            this.maxWork = 240;
-            this.visualScale = 1.6;
+            this.baseRadius = 178;
+            this.workMargin = 58;
+            this.maxWork = 430;
+            this.visualScale = 5.2;
             this.label = meta.largeLabel;
-            this.recommend = 'ココ＋狭い';
+            this.recommend = `${meta.recommend}＋囲む`;
         } else {
-            this.radius = 52;
-            this.workRadius = 120;
+            this.baseRadius = 52;
+            this.workMargin = 68;
             this.maxWork = 100;
+            this.visualScale = 1;
         }
         this.remaining = this.maxWork;
+        this.radius = this.getCollisionRadius();
+        this.workRadius = this.getWorkRadius();
     }
 
     static META = {
-        cleaning: { label: '掃除の山', smallLabel: '小さなゴミ', largeLabel: '巨大な掃除の山', icon: '🧹', color: '#f9a8d4', recommend: 'サクラ' },
+        cleaning: { label: '掃除の山', smallLabel: '小さなゴミ', largeLabel: '巨大なゴミの山', icon: '🧹', color: '#f9a8d4', recommend: 'サクラ' },
         cooking: { label: '料理の山', smallLabel: '食器のかけら', largeLabel: '巨大な料理の山', icon: '🍳', color: '#fdba74', recommend: 'ココ' },
         laundry: { label: '洗濯の山', smallLabel: '洗濯物', largeLabel: '巨大な洗濯の山', icon: '🧺', color: '#7dd3fc', recommend: 'アオイ' }
     };
@@ -55,10 +58,28 @@ class JobPile {
         return 1 - this.remaining / this.maxWork;
     }
 
+    /**
+     * 残量に応じて見た目・当たりが小さくなる
+     */
+    getSizeRatio() {
+        if (this.isComplete()) return 0.18;
+        return 0.22 + 0.78 * (this.remaining / this.maxWork);
+    }
+
+    getCollisionRadius() {
+        return this.baseRadius * this.getSizeRatio();
+    }
+
+    getWorkRadius() {
+        return this.getCollisionRadius() + this.workMargin;
+    }
+
     applyWork(amount) {
         if (this.isComplete()) return 0;
         const applied = Math.min(this.remaining, amount);
         this.remaining -= applied;
+        this.radius = this.getCollisionRadius();
+        this.workRadius = this.getWorkRadius();
         if (this.remaining <= 0) {
             this.remaining = 0;
             this.justCompleted = true;
@@ -70,13 +91,15 @@ class JobPile {
     containsPoint(px, py, extra = 0) {
         const dx = px - this.x;
         const dy = py - this.y;
-        const r = this.workRadius + extra;
+        const r = this.getWorkRadius() + extra;
         return dx * dx + dy * dy <= r * r;
     }
 
     update() {
         this.wobble += 0.04;
         if (this.completeFx > 0) this.completeFx -= 1;
+        this.radius = this.isComplete() ? 0 : this.getCollisionRadius();
+        this.workRadius = this.getWorkRadius();
     }
 
     draw(ctx) {
@@ -123,7 +146,7 @@ class JobPile {
     }
 
     drawMessyState(ctx) {
-        const shrink = (0.55 + this.remaining / this.maxWork * 0.45) * this.visualScale;
+        const shrink = this.visualScale * this.getSizeRatio();
         ctx.save();
         ctx.translate(this.x, this.y);
         ctx.scale(shrink, shrink);
@@ -212,10 +235,11 @@ class JobPile {
     }
 
     drawGauge(ctx) {
-        const w = this.pileSize === 'small' ? 72 : (this.pileSize === 'large' ? 150 : 132);
+        const visualR = this.isComplete() ? 36 : Math.max(28, this.getCollisionRadius());
+        const w = this.pileSize === 'small' ? 72 : (this.pileSize === 'large' ? 168 : 132);
         const h = this.pileSize === 'small' ? 14 : 22;
         const gx = this.x - w / 2;
-        const gy = this.y - (this.pileSize === 'small' ? 48 : 78);
+        const gy = this.y - visualR - (this.pileSize === 'small' ? 22 : 28);
         const ratio = Math.max(0, this.remaining / this.maxWork);
         const percent = this.isComplete() ? 0 : Math.max(1, Math.ceil(ratio * 100));
 
@@ -280,15 +304,16 @@ class JobPile {
         ctx.strokeStyle = 'rgba(255,255,255,0.92)';
         const text = this.isComplete() ? `${this.icon} ピカピカ！` : `${this.icon} ${this.label}`;
         ctx.fillStyle = this.isComplete() ? '#ca8a04' : '#6b4f6b';
-        const labelY = this.y - (this.pileSize === 'small' ? 66 : 102);
+        const visualR = this.isComplete() ? 36 : Math.max(28, this.getCollisionRadius());
+        const labelY = this.y - visualR - (this.pileSize === 'small' ? 40 : 52);
         ctx.strokeText(text, this.x, labelY);
         ctx.fillText(text, this.x, labelY);
 
         if (!this.isComplete()) {
             ctx.font = this.pileSize === 'small' ? '9px sans-serif' : '11px sans-serif';
             ctx.fillStyle = '#9d7a9d';
-            ctx.strokeText(`おすすめ ${this.recommend}`, this.x, this.y - (this.pileSize === 'small' ? 34 : 50));
-            ctx.fillText(`おすすめ ${this.recommend}`, this.x, this.y - (this.pileSize === 'small' ? 34 : 50));
+            ctx.strokeText(`おすすめ ${this.recommend}`, this.x, this.y - visualR - 8);
+            ctx.fillText(`おすすめ ${this.recommend}`, this.x, this.y - visualR - 8);
         }
         ctx.restore();
     }

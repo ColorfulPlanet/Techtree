@@ -158,6 +158,9 @@ class Maid extends Character {
         if (spread >= 0.66 && pileSize === 'large') {
             power *= 0.7;
         }
+        if (context.surrounded) {
+            power *= 1.85;
+        }
         return power;
     }
 
