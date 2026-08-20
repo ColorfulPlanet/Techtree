@@ -43,6 +43,10 @@ class Game {
         // 逆方向入力時にぬるっと滑らないよう強く減速する
         this.partyReverseFriction = 0.38;
         this.partyStopSpeed = 0.08;
+        // 当たりから隊列へ戻る速度（通常の追従は速いまま）
+        this.followSnapSpeed = 8;
+        this.followReturnSpeed = 1.85;
+        this.followBlockedSpeed = 1.25;
         
         // UI要素
         this.debugInfo = {
@@ -417,7 +421,9 @@ class Game {
         }
         
         // 各キャラクターを更新
+        this.rememberMaidPositions();
         this.formation.update();
+        this.limitMaidFollowStep();
         this.resolveCollisions();
 
         if (!this.cleared && !this.gameOver) {
@@ -507,6 +513,32 @@ class Game {
         this.combat.update(this.formation, this.enemies, this.particles);
     }
 
+    rememberMaidPositions() {
+        for (const maid of this.formation.members) {
+            maid.prevX = maid.x;
+            maid.prevY = maid.y;
+        }
+    }
+
+    limitMaidFollowStep() {
+        for (const maid of this.formation.members) {
+            if (maid.downed) continue;
+            const px = maid.prevX ?? maid.x;
+            const py = maid.prevY ?? maid.y;
+            const dx = maid.x - px;
+            const dy = maid.y - py;
+            const step = Math.hypot(dx, dy);
+            const distToSlot = Math.hypot(maid.targetX - px, maid.targetY - py);
+            let maxStep = this.followSnapSpeed;
+            if (maid.hitSolid) maxStep = this.followBlockedSpeed;
+            else if (distToSlot > 42) maxStep = this.followReturnSpeed;
+            if (step > maxStep && step > 0.0001) {
+                maid.x = px + (dx / step) * maxStep;
+                maid.y = py + (dy / step) * maxStep;
+            }
+        }
+    }
+
     separateFromStatic(body, ox, oy, minDist) {
         const dx = body.x - ox;
         const dy = body.y - oy;
@@ -514,11 +546,13 @@ class Game {
         if (dist >= minDist) return false;
         if (dist < 0.001) {
             body.x += minDist;
+            if (body.hitSolid !== undefined) body.hitSolid = true;
             return true;
         }
         const push = minDist - dist;
         body.x += (dx / dist) * push;
         body.y += (dy / dist) * push;
+        if (body.hitSolid !== undefined) body.hitSolid = true;
         return true;
     }
 
@@ -538,14 +572,17 @@ class Game {
         b.x += nx * overlap * (aMass / total);
         b.y += ny * overlap * (aMass / total);
         if (typeof b.vx === 'number') {
-            b.vx += nx * 0.4;
-            b.vy += ny * 0.4;
+            b.vx += nx * 0.12;
+            b.vy += ny * 0.12;
         }
+        if (a.hitSolid !== undefined) a.hitSolid = true;
+        if (b.hitSolid !== undefined) b.hitSolid = true;
         return true;
     }
 
     resolveCollisions() {
         const maids = this.formation.members.filter((maid) => !maid.downed);
+        for (const maid of maids) maid.hitSolid = false;
         const piles = this.jobPiles.filter((pile) => !pile.isComplete());
         const enemies = this.enemies.filter((enemy) => enemy.alive);
 

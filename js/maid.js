@@ -126,6 +126,9 @@ class Maid extends Character {
         this.workFlash = 0;
         this.lastX = 0;
         this.lastY = 0;
+        this.prevX = 0;
+        this.prevY = 0;
+        this.hitSolid = false;
     }
 
     /**
