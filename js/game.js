@@ -70,6 +70,9 @@ class Game {
         this.stage = new Stage();
         this.particles = new ParticleSystem();
         this.combat = new CombatSystem();
+        this.combat.onEnemyDefeated = (enemy) => {
+            this.grantPartyXp(enemy.xpReward || 3, enemy.x, enemy.y);
+        };
         this.lastSpreadMode = null;
         this.downedMaids = [];
         this.enemyShots = [];
@@ -82,6 +85,7 @@ class Game {
         this.workTextTimer = 0;
         this.cleared = false;
         this.hintTimer = 240;
+        this.progress = new PartyProgress();
         this.swapOverlay = document.getElementById('swapOverlay');
         this.swapMessage = document.getElementById('swapMessage');
         this.swapButtons = document.getElementById('swapButtons');
@@ -139,9 +143,15 @@ class Game {
         this.rescue = this.stage.createRescue();
         this.particles = new ParticleSystem();
         this.combat = new CombatSystem();
+        this.combat.onEnemyDefeated = (enemy) => {
+            this.grantPartyXp(enemy.xpReward || 3, enemy.x, enemy.y);
+        };
         this.cleared = false;
         this.gameOver = false;
         this.enemyShots = [];
+        if (this.rescue && this.rescue.waitingMaid) {
+            this.rescue.waitingMaid.applyPartyGrowth(this.progress);
+        }
         if (this.clearOverlay) this.clearOverlay.classList.add('hidden');
         if (this.swapOverlay) this.swapOverlay.classList.add('hidden');
         if (this.gameOverOverlay) this.gameOverOverlay.classList.add('hidden');
@@ -167,6 +177,7 @@ class Game {
         this.cameraY = start.y;
         this.formation.members.length = 0;
         this.formation.frontIndex = 0;
+        this.progress.reset();
         this.createCharacters();
         this.formation.setCenterPosition(this.partyX, this.partyY);
         this.formation.updateFormationPositions();
@@ -216,6 +227,7 @@ class Game {
         const incoming = this.rescue.waitingMaid;
         incoming.setPosition(outgoing.x, outgoing.y);
         incoming.setTarget(outgoing.targetX, outgoing.targetY);
+        incoming.applyPartyGrowth(this.progress);
         this.formation.members[index] = incoming;
         outgoing.setPosition(this.rescue.homeX, this.rescue.homeY);
         outgoing.setTarget(this.rescue.homeX, this.rescue.homeY);
@@ -248,6 +260,7 @@ class Game {
         this.formation.addMember(cookingMaid);
         this.formation.addMember(laundryMaid);
         this.downedMaids = [];
+        this.applyPartyGrowthToRoster();
     }
     
     /**
@@ -315,7 +328,14 @@ class Game {
     updatePartyHud() {
         if (!this.partyHud) return;
         const maids = this.rosterMaids();
-        this.partyHud.innerHTML = maids.map((maid) => {
+        const need = this.progress.xpToNext;
+        const xpPct = Math.round(this.progress.xpRatio * 100);
+        const levelBlock = `<div class="lv-block">
+            <div class="lv-title">PARTY Lv.${this.progress.level}</div>
+            <div class="hp-bar"><div class="hp-fill xp-fill" style="width:${xpPct}%"></div></div>
+            <div class="lv-xp">${this.progress.xp} / ${need}</div>
+        </div>`;
+        this.partyHud.innerHTML = levelBlock + maids.map((maid) => {
             const pct = maid.maxHp > 0 ? Math.round(maid.hp / maid.maxHp * 100) : 0;
             const status = maid.downed ? 'へとへと' : `${maid.hp}`;
             return `<div class="hp-row${maid.downed ? ' down' : ''}">
@@ -324,6 +344,40 @@ class Game {
                 <span class="hp-val">${status}</span>
             </div>`;
         }).join('');
+    }
+
+    applyPartyGrowthToRoster() {
+        for (const maid of this.rosterMaids()) {
+            maid.applyPartyGrowth(this.progress);
+        }
+        if (this.rescue && this.rescue.waitingMaid) {
+            this.rescue.waitingMaid.applyPartyGrowth(this.progress);
+        }
+    }
+
+    grantPartyXp(amount, x, y) {
+        const result = this.progress.grantXp(amount);
+        if (result.amount > 0 && x != null) {
+            this.particles.addText(x, y, `+${result.amount} XP`, '#fbbf24');
+        }
+        if (result.levelsGained > 0) {
+            this.handleLevelUp(result);
+        }
+        this.updatePartyHud();
+        return result;
+    }
+
+    handleLevelUp(result) {
+        this.applyPartyGrowthToRoster();
+        for (const maid of this.rosterMaids()) {
+            if (maid.downed) continue;
+            this.particles.spawnLevelUp(maid.x, maid.y);
+        }
+        const front = this.formation.getFrontCharacter();
+        const cx = front ? front.x : this.partyX;
+        const cy = front ? front.y : this.partyY;
+        this.particles.addText(cx, cy - 56, '✨ LEVEL UP! ✨', '#fde68a');
+        this.particles.addText(cx, cy - 76, `Lv.${result.level}`, '#f472b6');
     }
 
     updateJobHud() {
@@ -461,7 +515,8 @@ class Game {
             if (pile.justCompleted) {
                 pile.justCompleted = false;
                 this.particles.spawnComplete(pile.x, pile.y);
-                this.particles.addText(pile.x, pile.y - 40, `${pile.label} 完了！`, '#ca8a04');
+                this.particles.addText(pile.x, pile.y - 48, '✨ お仕事完了！', '#ca8a04');
+                this.grantPartyXp(pile.xpReward, pile.x, pile.y - 24);
             }
             if (pile.isComplete()) continue;
 
@@ -475,6 +530,7 @@ class Game {
                 this.formation.members,
                 pile.getWorkRadius() + 24
             );
+            const levelFactor = pile.getLevelFactor(this.progress.level);
             let anyoneWorking = false;
             for (const member of workers) {
                 const isFront = member === front;
@@ -482,7 +538,8 @@ class Game {
                     spread,
                     pileSize: pile.pileSize,
                     workers: workers.length,
-                    surrounded
+                    surrounded,
+                    levelFactor
                 });
                 pile.applyWork(power);
                 member.isWorking = true;
@@ -500,10 +557,15 @@ class Game {
 
             if (anyoneWorking && this.workTextTimer <= 0 && front && front.isWorking) {
                 const rank = front.getAptitudeRank(pile.jobType);
-                const label = surrounded
+                let label = surrounded
                     ? '囲み集中！'
                     : (rank === '得意' ? front.attackLabel : (rank === '苦手' ? 'がんばります…' : 'おてつだい'));
-                this.particles.addText(front.x, front.y - 34, label, surrounded ? '#fbbf24' : front.color);
+                let color = surrounded ? '#fbbf24' : front.color;
+                if (levelFactor < 0.4) {
+                    label = 'まだ早い…';
+                    color = '#94a3b8';
+                }
+                this.particles.addText(front.x, front.y - 34, label, color);
                 this.workTextTimer = surrounded ? 40 : 50;
             }
         }

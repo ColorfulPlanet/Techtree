@@ -16,6 +16,7 @@ class CombatSystem {
     constructor() {
         this.effects = [];
         this.encircleTextTimer = 0;
+        this.onEnemyDefeated = null;
     }
 
     getSpread(formation) {
@@ -38,18 +39,18 @@ class CombatSystem {
         const front = isFront ? 1 : 0.38;
 
         if (specialty === 'cooking') {
-            return {
-                kind: 'smash',
-                range: isFront ? 56 : 50,
-                damage: (isFront ? 24 : 7) * (mode === 'narrow' ? 1.45 : 1),
-                cooldown: isFront ? 24 : 36,
-                aoe: false,
-                knockback: 1.2,
-                slow: 0
-            };
+        return this.applyGrowthToProfile({
+            kind: 'smash',
+            range: isFront ? 56 : 50,
+            damage: (isFront ? 24 : 7) * (mode === 'narrow' ? 1.45 : 1),
+            cooldown: isFront ? 24 : 36,
+            aoe: false,
+            knockback: 1.2,
+            slow: 0
+        }, member);
         }
         if (specialty === 'laundry') {
-            return {
+        return this.applyGrowthToProfile({
                 kind: 'bubble',
                 range: isFront ? 200 : 160,
                 damage: (isFront ? 10 : 4) * (mode === 'narrow' ? 1.15 : 0.95),
@@ -58,9 +59,9 @@ class CombatSystem {
                 splash: mode === 'wide' ? 70 : 0,
                 knockback: mode === 'narrow' ? 10 : 5,
                 slow: mode === 'wide' ? 50 : 28
-            };
+            }, member);
         }
-        return {
+        return this.applyGrowthToProfile({
             kind: 'sweep',
             range: isFront ? (mode === 'wide' ? 125 : 100) : 85,
             sweepWidth: isFront
@@ -71,7 +72,19 @@ class CombatSystem {
             aoe: true,
             knockback: 0.6,
             slow: 0
-        };
+        }, member);
+    }
+
+    applyGrowthToProfile(profile, member) {
+        const attackMul = member.attackMul || 1;
+        const cooldownMul = member.cooldownMul || 1;
+        profile.damage *= attackMul;
+        profile.cooldown = Math.max(8, Math.round(profile.cooldown * cooldownMul));
+        profile.knockback *= attackMul;
+        if (profile.slow) {
+            profile.slow = Math.round(profile.slow * Math.min(1.45, attackMul));
+        }
+        return profile;
     }
 
     pickSharedFocus(formation, enemies, range) {
@@ -229,6 +242,7 @@ class CombatSystem {
                 if (defeated) {
                     particles.spawnDefeat(target.x, target.y);
                     particles.addText(target.x, target.y - 10, 'キレイ！', '#fbbf24');
+                    if (this.onEnemyDefeated) this.onEnemyDefeated(target);
                 }
             }
         }

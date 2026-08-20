@@ -3,7 +3,7 @@
  * 小型の群れと、狭い隊列向きの大型を用意する。
  */
 class DustMonster {
-    constructor(x, y, kind = 'small') {
+    constructor(x, y, kind = 'small', options = {}) {
         this.x = x;
         this.y = y;
         this.kind = kind;
@@ -18,6 +18,7 @@ class DustMonster {
         this.homeX = x;
         this.homeY = y;
         this.slowTimer = 0;
+        this.powerLevel = options.powerLevel || 1;
 
         if (kind === 'large') {
             this.radius = 36;
@@ -30,6 +31,7 @@ class DustMonster {
             this.attackRange = 102;
             this.aoeRadius = 118;
             this.windupDuration = 48;
+            this.xpReward = 8;
         } else {
             this.radius = 16;
             this.maxHp = 30;
@@ -41,6 +43,14 @@ class DustMonster {
             this.attackRange = 88;
             this.aoeRadius = 0;
             this.windupDuration = 28;
+            this.xpReward = 3;
+        }
+
+        const power = this.powerLevel;
+        if (power > 1) {
+            this.maxHp = Math.round(this.maxHp * (1 + (power - 1) * 0.42));
+            this.attackDamage = Math.round(this.attackDamage * (1 + (power - 1) * 0.28));
+            this.xpReward += (power - 1) * 2;
         }
         this.hp = this.maxHp;
         this.attackCooldown = 20 + Math.random() * 40;

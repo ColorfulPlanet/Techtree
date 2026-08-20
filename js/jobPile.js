@@ -19,25 +19,25 @@ class JobPile {
         this.recommend = meta.recommend;
         this.visualScale = 1;
 
+        const preset = JobPile.SIZE[this.pileSize] || JobPile.SIZE.normal;
+        this.baseRadius = preset.baseRadius;
+        this.workMargin = preset.workMargin;
+        this.maxWork = options.maxWork ?? preset.maxWork;
+        this.visualScale = preset.visualScale;
+        this.stars = options.stars ?? preset.stars;
+        this.recommendedLevel = options.recommendedLevel ?? preset.recommendedLevel;
+        this.xpReward = options.xp ?? preset.xp;
+
         if (this.pileSize === 'small') {
-            this.baseRadius = 26;
-            this.workMargin = 52;
-            this.maxWork = 34;
-            this.visualScale = 0.52;
-            this.label = meta.smallLabel;
+            this.label = options.label || meta.smallLabel;
             this.recommend = 'サクラ＋広い';
+        } else if (this.pileSize === 'medium') {
+            this.label = options.label || meta.mediumLabel;
         } else if (this.pileSize === 'large') {
-            this.baseRadius = 178;
-            this.workMargin = 58;
-            this.maxWork = 430;
-            this.visualScale = 5.2;
-            this.label = meta.largeLabel;
+            this.label = options.label || meta.largeLabel;
             this.recommend = `${meta.recommend}＋囲む`;
-        } else {
-            this.baseRadius = 52;
-            this.workMargin = 68;
-            this.maxWork = 100;
-            this.visualScale = 1;
+        } else if (options.label) {
+            this.label = options.label;
         }
         this.remaining = this.maxWork;
         this.radius = this.getCollisionRadius();
@@ -45,9 +45,28 @@ class JobPile {
     }
 
     static META = {
-        cleaning: { label: '掃除の山', smallLabel: '小さなゴミ', largeLabel: '巨大なゴミの山', icon: '🧹', color: '#f9a8d4', recommend: 'サクラ' },
-        cooking: { label: '料理の山', smallLabel: '食器のかけら', largeLabel: '巨大な料理の山', icon: '🍳', color: '#fdba74', recommend: 'ココ' },
-        laundry: { label: '洗濯の山', smallLabel: '洗濯物', largeLabel: '巨大な洗濯の山', icon: '🧺', color: '#7dd3fc', recommend: 'アオイ' }
+        cleaning: { label: '掃除の山', smallLabel: '小さなゴミ', mediumLabel: '大きなゴミ', largeLabel: '巨大なゴミの山', icon: '🧹', color: '#f9a8d4', recommend: 'サクラ' },
+        cooking: { label: '料理の山', smallLabel: '食器のかけら', mediumLabel: '散らかった机', largeLabel: '巨大な料理の山', icon: '🍳', color: '#fdba74', recommend: 'ココ' },
+        laundry: { label: '洗濯の山', smallLabel: '小さな洗濯物', mediumLabel: '洗濯物の山', largeLabel: '巨大な洗濯の山', icon: '🧺', color: '#7dd3fc', recommend: 'アオイ' }
+    };
+
+    static SIZE = {
+        small: {
+            baseRadius: 26, workMargin: 52, maxWork: 28, visualScale: 0.52,
+            stars: 1, recommendedLevel: 1, xp: 10
+        },
+        medium: {
+            baseRadius: 58, workMargin: 62, maxWork: 88, visualScale: 1.15,
+            stars: 2, recommendedLevel: 2, xp: 20
+        },
+        normal: {
+            baseRadius: 72, workMargin: 68, maxWork: 190, visualScale: 1.4,
+            stars: 3, recommendedLevel: 3, xp: 50
+        },
+        large: {
+            baseRadius: 178, workMargin: 58, maxWork: 780, visualScale: 5.2,
+            stars: 5, recommendedLevel: 5, xp: 100
+        }
     };
 
     isComplete() {
@@ -72,6 +91,21 @@ class JobPile {
 
     getWorkRadius() {
         return this.getCollisionRadius() + this.workMargin;
+    }
+
+    getStarText() {
+        return '★'.repeat(Math.max(1, this.stars || 1));
+    }
+
+    /**
+     * パーティーレベルと推奨レベルの差で仕事の進みやすさが変わる。
+     * 低レベルでは巨大な仕事がほとんど減らない。
+     */
+    getLevelFactor(partyLevel) {
+        const rec = Math.max(1, this.recommendedLevel || 1);
+        const level = Math.max(1, partyLevel || 1);
+        if (level >= rec) return 1 + (level - rec) * 0.06;
+        return Math.max(0.14, Math.pow(level / rec, 1.55));
     }
 
     applyWork(amount) {
@@ -310,10 +344,10 @@ class JobPile {
         ctx.fillText(text, this.x, labelY);
 
         if (!this.isComplete()) {
-            ctx.font = this.pileSize === 'small' ? '9px sans-serif' : '11px sans-serif';
-            ctx.fillStyle = '#9d7a9d';
-            ctx.strokeText(`おすすめ ${this.recommend}`, this.x, this.y - visualR - 8);
-            ctx.fillText(`おすすめ ${this.recommend}`, this.x, this.y - visualR - 8);
+            ctx.font = this.pileSize === 'small' ? '10px sans-serif' : '12px sans-serif';
+            ctx.fillStyle = '#eab308';
+            ctx.strokeText(this.getStarText(), this.x, this.y - visualR - 8);
+            ctx.fillText(this.getStarText(), this.x, this.y - visualR - 8);
         }
         ctx.restore();
     }

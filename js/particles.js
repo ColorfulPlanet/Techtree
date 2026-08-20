@@ -57,6 +57,13 @@ class ParticleSystem {
         this.spawnBurst(x, y, 'heart', 8, '#f9a8d4');
     }
 
+    spawnLevelUp(x, y) {
+        this.spawnBurst(x, y, 'star', 16, '#fde68a');
+        this.spawnBurst(x, y, 'sparkle', 18, '#fff7ae');
+        this.spawnBurst(x, y, 'heart', 8, '#fda4af');
+        this.spawnBurst(x, y - 12, 'sparkle', 10, '#86efac');
+    }
+
     addText(x, y, text, color = '#fb7185') {
         this.floatTexts.push({
             x,

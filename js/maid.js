@@ -107,8 +107,12 @@ class Maid extends Character {
         this.workLabel = preset.workLabel;
 
         this.maxHp = preset.maxHp ?? 100;
+        this.baseMaxHp = this.maxHp;
         this.hp = this.maxHp;
         this.defense = preset.defense ?? 0;
+        this.attackMul = 1;
+        this.workMul = 1;
+        this.cooldownMul = 1;
         this.invulnFrames = 30;
         this.invulnTimer = 0;
         this.hitFlash = 0;
@@ -164,6 +168,10 @@ class Maid extends Character {
         if (context.surrounded) {
             power *= 1.85;
         }
+        power *= this.workMul || 1;
+        if (context.levelFactor != null) {
+            power *= context.levelFactor;
+        }
         return power;
     }
 
@@ -172,6 +180,17 @@ class Maid extends Character {
         if (apt >= APTITUDE.expert) return '得意';
         if (apt <= APTITUDE.weak) return '苦手';
         return '普通';
+    }
+
+    applyPartyGrowth(progress) {
+        if (!progress) return;
+        const growth = progress.getGrowth();
+        const ratio = this.downed ? 0 : (this.maxHp > 0 ? this.hp / this.maxHp : 1);
+        this.maxHp = Math.round(this.baseMaxHp * growth.hpMul);
+        this.hp = this.downed ? 0 : Math.max(1, Math.round(this.maxHp * ratio));
+        this.attackMul = growth.attackMul;
+        this.workMul = growth.workMul;
+        this.cooldownMul = growth.cooldownMul;
     }
 
     update() {

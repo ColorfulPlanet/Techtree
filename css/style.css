@@ -270,6 +270,29 @@ body {
     font-weight: bold;
 }
 
+.lv-block {
+    margin-bottom: 6px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid rgba(107, 79, 107, 0.16);
+}
+
+.lv-title {
+    font-size: 12px;
+    font-weight: bold;
+    color: #db2777;
+}
+
+.xp-fill {
+    background: #fbbf24;
+}
+
+.lv-xp {
+    font-size: 10px;
+    color: #9d7a9d;
+    text-align: right;
+    margin-top: 2px;
+}
+
 #jobObjectives {
     position: absolute;
     top: 10px;

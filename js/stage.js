@@ -47,52 +47,66 @@ class Stage {
     }
 
     createJobPiles() {
-        const cleaningCenter = this.fromImage(770, 430);
-        const cooking = this.fromImage(430, 310);
+        const start = this.fromImage(768, 592);
+        const cleaningGiant = this.fromImage(770, 430);
+        const cookingGiant = this.fromImage(430, 310);
         const laundry = this.fromImage(1080, 720);
-        const offsets = [
-            [-210, -90],
-            [230, -70],
-            [-190, 130],
-            [210, 120]
-        ];
-        const cleaningBits = offsets.map(([ox, oy]) =>
-            new JobPile(JOB_TYPES.cleaning, cleaningCenter.x + ox * this.worldScale, cleaningCenter.y + oy * this.worldScale, { size: 'small' })
-        );
+        const desk = this.fromImage(620, 520);
+        const bigTrash = this.fromImage(770, 560);
+
         return [
-            new JobPile(JOB_TYPES.cleaning, cleaningCenter.x, cleaningCenter.y, { size: 'large' }),
-            ...cleaningBits,
-            new JobPile(JOB_TYPES.cooking, cooking.x, cooking.y, { size: 'large' }),
+            new JobPile(JOB_TYPES.cleaning, start.x - 110, start.y + 8, { size: 'small' }),
+            new JobPile(JOB_TYPES.cleaning, start.x + 125, start.y - 24, { size: 'small' }),
+            new JobPile(JOB_TYPES.laundry, start.x + 46, start.y + 92, { size: 'small' }),
+            new JobPile(JOB_TYPES.cleaning, start.x - 170, start.y + 78, { size: 'small' }),
+            new JobPile(JOB_TYPES.cooking, desk.x, desk.y, { size: 'medium' }),
+            new JobPile(JOB_TYPES.laundry, laundry.x + 70, laundry.y + 36, { size: 'medium' }),
+            new JobPile(JOB_TYPES.cleaning, bigTrash.x, bigTrash.y, { size: 'normal', label: '大きなゴミ' }),
             new JobPile(JOB_TYPES.laundry, laundry.x, laundry.y, { size: 'normal' }),
-            new JobPile(JOB_TYPES.laundry, laundry.x + 90, laundry.y - 50, { size: 'small' }),
-            new JobPile(JOB_TYPES.laundry, laundry.x - 80, laundry.y + 40, { size: 'small' })
+            new JobPile(JOB_TYPES.cleaning, cleaningGiant.x, cleaningGiant.y, { size: 'large' }),
+            new JobPile(JOB_TYPES.cooking, cookingGiant.x, cookingGiant.y, { size: 'large' })
         ];
     }
 
     createEnemies() {
-        const smallSpots = [
+        const weakSpots = [
+            [780, 630],
+            [720, 650],
+            [840, 610]
+        ];
+        const midSpots = [
+            [1040, 690],
+            [1140, 760],
+            [1100, 640]
+        ];
+        const guardSpots = [
             [700, 390],
             [760, 470],
             [840, 400],
             [800, 510],
             [720, 330],
-            [880, 450],
-            [1040, 690],
-            [1140, 760],
-            [1100, 640]
+            [880, 450]
         ];
         const largeSpots = [
             [400, 300],
             [500, 360]
         ];
         return [
-            ...smallSpots.map(([px, py]) => {
+            ...weakSpots.map(([px, py]) => {
                 const p = this.fromImage(px, py);
-                return new DustMonster(p.x, p.y, 'small');
+                return new DustMonster(p.x, p.y, 'small', { powerLevel: 1 });
+            }),
+            ...midSpots.map(([px, py]) => {
+                const p = this.fromImage(px, py);
+                return new DustMonster(p.x, p.y, 'small', { powerLevel: 2 });
+            }),
+            ...guardSpots.map(([px, py]) => {
+                const p = this.fromImage(px, py);
+                return new DustMonster(p.x, p.y, 'small', { powerLevel: 4 });
             }),
             ...largeSpots.map(([px, py]) => {
                 const p = this.fromImage(px, py);
-                return new DustMonster(p.x, p.y, 'large');
+                return new DustMonster(p.x, p.y, 'large', { powerLevel: 5 });
             })
         ];
     }
