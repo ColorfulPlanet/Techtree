@@ -405,10 +405,6 @@ class Game {
         this.partyX = clamped.x;
         this.partyY = clamped.y;
         
-        // カメラをパーティーに追従
-        this.cameraX = this.partyX;
-        this.cameraY = this.partyY;
-        
         // 隊列の中心位置を更新
         this.formation.setCenterPosition(this.partyX, this.partyY);
         
@@ -425,6 +421,7 @@ class Game {
         this.formation.update();
         this.limitMaidFollowStep();
         this.resolveCollisions();
+        this.anchorPartyToCaptain();
 
         if (!this.cleared && !this.gameOver) {
             this.updateWork();
@@ -435,6 +432,7 @@ class Game {
         }
 
         this.resolveCollisions();
+        this.anchorPartyToCaptain();
 
         for (const maid of this.downedMaids) maid.update();
         this.updatePartyHud();
@@ -518,6 +516,46 @@ class Game {
             maid.prevX = maid.x;
             maid.prevY = maid.y;
         }
+    }
+
+    /**
+     * 隊長の実位置を本体座標にする。
+     * 隊長が壁に引っかかっているときは、そこからスクロールも進まない。
+     */
+    anchorPartyToCaptain() {
+        const front = this.formation.getFrontCharacter();
+        if (!front || front.downed) {
+            this.cameraX = this.partyX;
+            this.cameraY = this.partyY;
+            return;
+        }
+
+        const corrX = front.x - front.targetX;
+        const corrY = front.y - front.targetY;
+        const err = Math.hypot(corrX, corrY);
+
+        if (front.hitSolid || err > 8) {
+            this.partyX += corrX;
+            this.partyY += corrY;
+            const clamped = this.stage.clamp(this.partyX, this.partyY);
+            this.partyX = clamped.x;
+            this.partyY = clamped.y;
+            this.formation.setCenterPosition(this.partyX, this.partyY);
+            this.formation.updateFormationPositions();
+
+            if (front.hitSolid && err > 0.01) {
+                const nx = corrX / err;
+                const ny = corrY / err;
+                const intoWall = this.partyVelocityX * nx + this.partyVelocityY * ny;
+                if (intoWall < 0) {
+                    this.partyVelocityX -= intoWall * nx;
+                    this.partyVelocityY -= intoWall * ny;
+                }
+            }
+        }
+
+        this.cameraX = front.x;
+        this.cameraY = front.y;
     }
 
     limitMaidFollowStep() {
