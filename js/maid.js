@@ -116,6 +116,8 @@ class Maid extends Character {
 
         this.radius = 24;
         this.drawScale = 1.35;
+        // 隊列スロットへの追従を速くし、見た目の滑りを抑える
+        this.moveSpeed = 0.35;
         this.animTime = Math.random() * Math.PI * 2;
         this.facing = 1;
         this.isWorking = false;

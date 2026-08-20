@@ -36,8 +36,13 @@ class Game {
         this.partyVelocityY = 0;
         this.partyMaxSpeed = 3;
         this.basePartyMaxSpeed = 3;
-        this.partyAcceleration = 0.5;
+        this.partyAcceleration = 0.65;
         this.partyFriction = 0.85;
+        // スティックを離したときの余韻を短くする
+        this.partyStopFriction = 0.42;
+        // 逆方向入力時にぬるっと滑らないよう強く減速する
+        this.partyReverseFriction = 0.38;
+        this.partyStopSpeed = 0.08;
         
         // UI要素
         this.debugInfo = {
@@ -354,23 +359,35 @@ class Game {
             ? this.basePartyMaxSpeed * 1.22
             : this.basePartyMaxSpeed;
         
-        // 入力に応じて加速
-        if (input.active && (Math.abs(input.x) > 0 || Math.abs(input.y) > 0)) {
+        const hasInput = input.active && (Math.abs(input.x) > 0 || Math.abs(input.y) > 0);
+
+        // 入力に応じて加速。逆方向は先に強く減速してから加速する
+        if (hasInput) {
+            if (this.partyVelocityX * input.x < 0) {
+                this.partyVelocityX *= this.partyReverseFriction;
+            }
+            if (this.partyVelocityY * input.y < 0) {
+                this.partyVelocityY *= this.partyReverseFriction;
+            }
             this.partyVelocityX += input.x * this.partyAcceleration;
             this.partyVelocityY += input.y * this.partyAcceleration;
         }
         
-        // 摩擦を適用
-        this.partyVelocityX *= this.partyFriction;
-        this.partyVelocityY *= this.partyFriction;
+        // 摩擦を適用（無入力時はより強く減速）
+        const friction = hasInput ? this.partyFriction : this.partyStopFriction;
+        this.partyVelocityX *= friction;
+        this.partyVelocityY *= friction;
         
         // 最大速度を制限
         const speed = Math.sqrt(
             this.partyVelocityX * this.partyVelocityX + 
             this.partyVelocityY * this.partyVelocityY
         );
-        
-        if (speed > this.partyMaxSpeed) {
+
+        if (!hasInput && speed < this.partyStopSpeed) {
+            this.partyVelocityX = 0;
+            this.partyVelocityY = 0;
+        } else if (speed > this.partyMaxSpeed) {
             const ratio = this.partyMaxSpeed / speed;
             this.partyVelocityX *= ratio;
             this.partyVelocityY *= ratio;

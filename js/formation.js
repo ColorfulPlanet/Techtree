@@ -26,8 +26,8 @@ class FormationManager {
         this.formationAngle = 0;
         this.targetAngle = 0;
         
-        // 回転速度の基本値
-        this.baseRotationSpeed = 0.05;
+        // 回転速度の基本値（方向転換がぬるくなりすぎない範囲で抑える）
+        this.baseRotationSpeed = 0.10;
     }
     
     /**
