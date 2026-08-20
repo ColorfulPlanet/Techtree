@@ -221,6 +221,55 @@ body {
     font-weight: bold;
 }
 
+#partyHp {
+    position: absolute;
+    top: 108px;
+    left: 10px;
+    z-index: 100;
+    background: rgba(255, 255, 255, 0.88);
+    padding: 8px 10px;
+    border-radius: 10px;
+    min-width: 150px;
+    pointer-events: none;
+}
+
+.hp-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: #6b4f6b;
+    margin-top: 3px;
+}
+
+.hp-row.down {
+    opacity: 0.55;
+}
+
+.hp-name {
+    width: 48px;
+    font-weight: bold;
+}
+
+.hp-bar {
+    flex: 1;
+    height: 7px;
+    background: #e2e8f0;
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.hp-fill {
+    height: 100%;
+    border-radius: 999px;
+}
+
+.hp-val {
+    width: 42px;
+    text-align: right;
+    font-weight: bold;
+}
+
 #jobObjectives {
     position: absolute;
     top: 10px;
@@ -321,7 +370,8 @@ body {
     max-width: 46%;
 }
 
-#clearOverlay {
+#clearOverlay,
+#gameOverOverlay {
     position: absolute;
     inset: 0;
     background: rgba(255, 240, 250, 0.55);
@@ -331,7 +381,8 @@ body {
     z-index: 200;
 }
 
-#clearOverlay.hidden {
+#clearOverlay.hidden,
+#gameOverOverlay.hidden {
     display: none;
 }
 
@@ -356,6 +407,7 @@ body {
 }
 
 #retryButton,
+#gameOverRetry,
 #swapCancel,
 .swap-member {
     border: none;

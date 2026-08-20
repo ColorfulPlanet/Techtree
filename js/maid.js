@@ -106,6 +106,14 @@ class Maid extends Character {
         this.attackLabel = preset.attackLabel;
         this.workLabel = preset.workLabel;
 
+        this.maxHp = preset.maxHp ?? 100;
+        this.hp = this.maxHp;
+        this.defense = preset.defense ?? 0;
+        this.invulnFrames = 30;
+        this.invulnTimer = 0;
+        this.hitFlash = 0;
+        this.downed = false;
+
         this.radius = 24;
         this.drawScale = 1.35;
         this.animTime = Math.random() * Math.PI * 2;
@@ -166,25 +174,60 @@ class Maid extends Character {
         this.lastX = this.x;
         this.lastY = this.y;
 
-        this.animTime += this.isWorking || this.isAttacking > 0 ? 0.18 : 0.08;
+        this.animTime += this.downed
+            ? 0.05
+            : (this.isWorking || this.isAttacking > 0 ? 0.18 : 0.08);
         if (this.isAttacking > 0) this.isAttacking -= 1;
         if (this.attackCooldown > 0) this.attackCooldown -= 1;
         if (this.workFlash > 0) this.workFlash -= 1;
+        if (this.invulnTimer > 0) this.invulnTimer -= 1;
+        if (this.hitFlash > 0) this.hitFlash -= 1;
+
+        if (this.downed) {
+            this.targetX = this.x;
+            this.targetY = this.y;
+            return;
+        }
 
         super.update();
     }
 
+    takeDamage(amount) {
+        if (this.downed || this.invulnTimer > 0) return 0;
+        const reduced = Math.max(1, Math.round(amount * (1 - this.defense)));
+        this.hp = Math.max(0, this.hp - reduced);
+        this.invulnTimer = this.invulnFrames;
+        this.hitFlash = 10;
+        if (this.hp <= 0) {
+            this.hp = 0;
+            this.downed = true;
+            this.isWorking = false;
+            this.isAttacking = 0;
+        }
+        return reduced;
+    }
+
+    isCombatReady() {
+        return !this.downed;
+    }
+
     draw(ctx, isFront = false) {
-        const bob = Math.sin(this.animTime * 3.2) * (this.isWorking ? 2.4 : 1.2);
+        if (this.invulnTimer > 0 && Math.floor(this.invulnTimer / 3) % 2 === 0 && !this.downed) {
+            this.drawHpBar(ctx);
+            this.drawNameplate(ctx, isFront);
+            return;
+        }
+
+        const bob = this.downed ? 0 : Math.sin(this.animTime * 3.2) * (this.isWorking ? 2.4 : 1.2);
         const x = this.x;
         const y = this.y + bob;
         const face = this.facing;
 
-        if (isFront) this.drawCaptainMarker(ctx);
+        if (isFront && !this.downed) this.drawCaptainMarker(ctx);
 
         ctx.save();
-        ctx.translate(x, y);
-        ctx.scale(face * this.drawScale, this.drawScale);
+        ctx.translate(x, y + (this.downed ? 6 : 0));
+        ctx.scale(face * this.drawScale, this.drawScale * (this.downed ? 0.72 : 1));
 
         this.drawShadow(ctx);
 
@@ -193,11 +236,13 @@ class Maid extends Character {
         this.drawHead(ctx);
         this.drawHairFront(ctx);
         this.drawHeaddress(ctx);
-        this.drawTool(ctx);
+        if (!this.downed) this.drawTool(ctx);
 
         ctx.restore();
 
-        this.drawNameplate(ctx, isFront);
+        if (this.downed) this.drawZzz(ctx);
+        this.drawHpBar(ctx);
+        this.drawNameplate(ctx, isFront && !this.downed);
     }
 
     drawShadow(ctx) {
@@ -283,16 +328,25 @@ class Maid extends Character {
         ctx.fill();
 
         ctx.fillStyle = '#3f2a2a';
-        ctx.beginPath();
-        ctx.ellipse(-3.5, -10, 1.4, 2.1, 0, 0, Math.PI * 2);
-        ctx.ellipse(3.5, -10, 1.4, 2.1, 0, 0, Math.PI * 2);
-        ctx.fill();
-
-        ctx.fillStyle = '#fff';
-        ctx.beginPath();
-        ctx.arc(-3.0, -10.7, 0.6, 0, Math.PI * 2);
-        ctx.arc(4.0, -10.7, 0.6, 0, Math.PI * 2);
-        ctx.fill();
+        if (this.downed) {
+            ctx.strokeStyle = '#3f2a2a';
+            ctx.lineWidth = 1.1;
+            [[-3.5, -10], [3.5, -10]].forEach(([ex, ey]) => {
+                ctx.beginPath();
+                ctx.arc(ex, ey, 2.2, 0, Math.PI * 1.6);
+                ctx.stroke();
+            });
+        } else {
+            ctx.beginPath();
+            ctx.ellipse(-3.5, -10, 1.4, 2.1, 0, 0, Math.PI * 2);
+            ctx.ellipse(3.5, -10, 1.4, 2.1, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.arc(-3.0, -10.7, 0.6, 0, Math.PI * 2);
+            ctx.arc(4.0, -10.7, 0.6, 0, Math.PI * 2);
+            ctx.fill();
+        }
 
         ctx.fillStyle = 'rgba(255, 130, 150, 0.45)';
         ctx.beginPath();
@@ -397,6 +451,32 @@ class Maid extends Character {
         ctx.fillStyle = isFront ? '#b45309' : '#6b4f6b';
         ctx.strokeText(this.name, this.x, this.y + 30);
         ctx.fillText(this.name, this.x, this.y + 30);
+        ctx.restore();
+    }
+
+    drawHpBar(ctx) {
+        const w = 30;
+        const h = 5;
+        const x = this.x - w / 2;
+        const y = this.y - 38;
+        const ratio = this.maxHp > 0 ? this.hp / this.maxHp : 0;
+        ctx.save();
+        ctx.fillStyle = 'rgba(255,255,255,0.92)';
+        ctx.fillRect(x - 1, y - 1, w + 2, h + 2);
+        ctx.fillStyle = '#e2e8f0';
+        ctx.fillRect(x, y, w, h);
+        ctx.fillStyle = ratio > 0.35 ? '#4ade80' : (ratio > 0.15 ? '#fbbf24' : '#fb7185');
+        ctx.fillRect(x, y, Math.max(0, w * ratio), h);
+        ctx.restore();
+    }
+
+    drawZzz(ctx) {
+        const bounce = Math.sin(this.animTime * 2) * 3;
+        ctx.save();
+        ctx.font = 'bold 12px sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#64748b';
+        ctx.fillText('Zzz', this.x + 16, this.y - 18 + bounce);
         ctx.restore();
     }
 }

@@ -118,6 +118,7 @@ class CombatSystem {
             : null;
 
         for (const member of formation.members) {
+            if (member.downed) continue;
             if (member.attackCooldown > 0) continue;
             const isFront = member === front;
             const profile = this.getProfile(member, isFront, mode);

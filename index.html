@@ -45,6 +45,8 @@
             <div>隊列間隔: <span id="formationSpacing">100</span></div>
         </div>
 
+        <div id="partyHp"></div>
+
         <div id="jobObjectives">
             <div class="job-title">今日のお仕事</div>
             <div class="job-item" id="jobCleaning">
@@ -70,7 +72,7 @@
             </div>
         </div>
 
-        <div id="hintText">隊長で攻撃が変わる／隊列で集中と分散</div>
+        <div id="hintText">敵の攻撃を見て、隊長と隊列幅を変えよう</div>
 
         <div id="swapOverlay" class="hidden">
             <div class="clear-card">
@@ -78,6 +80,14 @@
                 <div class="clear-sub">パーティーは3人までです。交代するメイドを選んでください</div>
                 <div id="swapButtons" class="swap-buttons"></div>
                 <button id="swapCancel" type="button">今は交代しない</button>
+            </div>
+        </div>
+
+        <div id="gameOverOverlay" class="hidden">
+            <div class="clear-card">
+                <div class="clear-title">GAME OVER</div>
+                <div class="clear-sub">3人ともへとへとです…</div>
+                <button id="gameOverRetry" type="button">もういちど</button>
             </div>
         </div>
 

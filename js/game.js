@@ -59,6 +59,11 @@ class Game {
         this.particles = new ParticleSystem();
         this.combat = new CombatSystem();
         this.lastSpreadMode = null;
+        this.downedMaids = [];
+        this.enemyShots = [];
+        this.gameOver = false;
+        this.partyHud = document.getElementById('partyHp');
+        this.gameOverOverlay = document.getElementById('gameOverOverlay');
         this.jobPiles = [];
         this.enemies = [];
         this.rescue = null;
@@ -121,36 +126,44 @@ class Game {
         this.enemies = this.stage.createEnemies();
         this.rescue = this.stage.createRescue();
         this.particles = new ParticleSystem();
+        this.combat = new CombatSystem();
         this.cleared = false;
+        this.gameOver = false;
+        this.enemyShots = [];
         if (this.clearOverlay) this.clearOverlay.classList.add('hidden');
         if (this.swapOverlay) this.swapOverlay.classList.add('hidden');
+        if (this.gameOverOverlay) this.gameOverOverlay.classList.add('hidden');
         this.updateJobHud();
+        this.updatePartyHud();
     }
 
     setupClearUi() {
         const retry = document.getElementById('retryButton');
-        if (retry) {
-            retry.addEventListener('click', () => {
-                const start = this.stage.startPosition();
-                this.partyX = start.x;
-                this.partyY = start.y;
-                this.partyVelocityX = 0;
-                this.partyVelocityY = 0;
-                this.cameraX = start.x;
-                this.cameraY = start.y;
-                this.formation.members.length = 0;
-                this.formation.frontIndex = 0;
-                this.createCharacters();
-                this.formation.setCenterPosition(this.partyX, this.partyY);
-                this.formation.updateFormationPositions();
-                for (const member of this.formation.members) {
-                    member.setPosition(member.targetX, member.targetY);
-                }
-                this.resetStageEntities();
-                this.hintTimer = 180;
-                this.updateUI();
-            });
+        const overRetry = document.getElementById('gameOverRetry');
+        const restart = () => this.restartRun();
+        if (retry) retry.addEventListener('click', restart);
+        if (overRetry) overRetry.addEventListener('click', restart);
+    }
+
+    restartRun() {
+        const start = this.stage.startPosition();
+        this.partyX = start.x;
+        this.partyY = start.y;
+        this.partyVelocityX = 0;
+        this.partyVelocityY = 0;
+        this.cameraX = start.x;
+        this.cameraY = start.y;
+        this.formation.members.length = 0;
+        this.formation.frontIndex = 0;
+        this.createCharacters();
+        this.formation.setCenterPosition(this.partyX, this.partyY);
+        this.formation.updateFormationPositions();
+        for (const member of this.formation.members) {
+            member.setPosition(member.targetX, member.targetY);
         }
+        this.resetStageEntities();
+        this.hintTimer = 180;
+        this.updateUI();
     }
 
     setupSwapUi() {
@@ -222,6 +235,7 @@ class Game {
         this.formation.addMember(cleaningMaid);
         this.formation.addMember(cookingMaid);
         this.formation.addMember(laundryMaid);
+        this.downedMaids = [];
     }
     
     /**
@@ -279,6 +293,25 @@ class Game {
         }
 
         this.updateJobHud();
+        this.updatePartyHud();
+    }
+
+    rosterMaids() {
+        return [...this.formation.members, ...this.downedMaids];
+    }
+
+    updatePartyHud() {
+        if (!this.partyHud) return;
+        const maids = this.rosterMaids();
+        this.partyHud.innerHTML = maids.map((maid) => {
+            const pct = maid.maxHp > 0 ? Math.round(maid.hp / maid.maxHp * 100) : 0;
+            const status = maid.downed ? 'へとへと' : `${maid.hp}`;
+            return `<div class="hp-row${maid.downed ? ' down' : ''}">
+                <span class="hp-name">${maid.name}</span>
+                <div class="hp-bar"><div class="hp-fill" style="width:${pct}%;background:${maid.color}"></div></div>
+                <span class="hp-val">${status}</span>
+            </div>`;
+        }).join('');
     }
 
     updateJobHud() {
@@ -364,13 +397,16 @@ class Game {
         // 各キャラクターを更新
         this.formation.update();
 
-        if (!this.cleared) {
+        if (!this.cleared && !this.gameOver) {
             this.updateWork();
             this.updateCombat();
             this.updateEnemies();
             this.updateRescue();
             this.checkClear();
         }
+
+        for (const maid of this.downedMaids) maid.update();
+        this.updatePartyHud();
 
         this.particles.update();
         if (this.hintTimer > 0) this.hintTimer -= 1;
@@ -397,7 +433,7 @@ class Game {
             if (pile.isComplete()) continue;
 
             const workers = this.formation.members.filter((member) =>
-                pile.containsPoint(member.x, member.y, member.radius)
+                !member.downed && pile.containsPoint(member.x, member.y, member.radius)
             );
             const spread = this.combat.getSpread(this.formation);
             let anyoneWorking = false;
@@ -437,10 +473,71 @@ class Game {
         this.combat.update(this.formation, this.enemies, this.particles);
     }
 
-    updateEnemies() {
-        for (const enemy of this.enemies) {
-            enemy.update(this.partyX, this.partyY);
+    hurtMaid(maid, amount) {
+        if (!maid || maid.downed) return;
+        const dealt = maid.takeDamage(amount);
+        if (dealt <= 0) return;
+        this.particles.addText(maid.x, maid.y - 28, `-${dealt}`, '#fb7185');
+        this.particles.spawnBurst(maid.x, maid.y, 'star', 5, '#fda4af');
+        if (maid.downed) {
+            this.dropFromFormation(maid);
+            this.particles.addText(maid.x, maid.y - 48, 'へとへと…', '#64748b');
         }
+        this.updatePartyHud();
+    }
+
+    dropFromFormation(maid) {
+        const idx = this.formation.members.indexOf(maid);
+        if (idx === -1) return;
+        this.formation.members.splice(idx, 1);
+        if (idx < this.formation.frontIndex) this.formation.frontIndex -= 1;
+        if (!this.downedMaids.includes(maid)) this.downedMaids.push(maid);
+        if (this.formation.members.length === 0) {
+            this.formation.frontIndex = 0;
+            this.triggerGameOver();
+            this.updatePartyHud();
+            return;
+        }
+        this.formation.frontIndex = this.formation.frontIndex % this.formation.members.length;
+        if (!this.downedMaids.includes(maid)) this.downedMaids.push(maid);
+        this.updateUI();
+    }
+
+    triggerGameOver() {
+        this.gameOver = true;
+        if (this.gameOverOverlay) this.gameOverOverlay.classList.remove('hidden');
+    }
+
+    updateEnemies() {
+        const living = this.formation.members;
+        for (const enemy of this.enemies) {
+            const action = enemy.update(living);
+            if (!action) continue;
+            if (action.type === 'shot' && action.shot) {
+                this.enemyShots.push(action.shot);
+            } else if (action.type === 'aoe') {
+                this.particles.spawnBurst(action.x, action.y, 'sparkle', 16, '#fde68a');
+                this.particles.addText(action.x, action.y - 24, 'ドカン！', '#f59e0b');
+                for (const maid of living) {
+                    if (Math.hypot(maid.x - action.x, maid.y - action.y) <= action.radius + maid.radius) {
+                        this.hurtMaid(maid, action.damage);
+                    }
+                }
+            }
+        }
+
+        for (const shot of this.enemyShots) {
+            shot.update();
+            if (!shot.alive) continue;
+            for (const maid of this.formation.members) {
+                if (shot.hits(maid)) {
+                    this.hurtMaid(maid, shot.damage);
+                    shot.alive = false;
+                    break;
+                }
+            }
+        }
+        this.enemyShots = this.enemyShots.filter((shot) => shot.alive);
     }
 
     updateRescue() {
@@ -497,10 +594,12 @@ class Game {
             enemy.draw(this.ctx);
         }
         if (this.rescue) this.rescue.draw(this.ctx);
+        for (const maid of this.downedMaids) maid.draw(this.ctx, false);
         
         // 隊列を描画（ワールド座標）
         this.formation.draw(this.ctx);
         this.combat.draw(this.ctx);
+        for (const shot of this.enemyShots) shot.draw(this.ctx);
 
         this.particles.draw(this.ctx);
         

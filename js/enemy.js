@@ -24,24 +24,91 @@ class DustMonster {
             this.maxHp = 120;
             this.drawScale = 2.05;
             this.chaseSpeed = 0.028;
+            this.attackType = 'aoe';
+            this.attackDamage = 9;
+            this.attackInterval = 140;
+            this.attackRange = 102;
+            this.aoeRadius = 118;
+            this.windupDuration = 48;
         } else {
             this.radius = 16;
-            this.maxHp = 12;
+            this.maxHp = 30;
             this.drawScale = 1.15;
             this.chaseSpeed = 0.05;
+            this.attackType = 'single';
+            this.attackDamage = 6;
+            this.attackInterval = 90;
+            this.attackRange = 88;
+            this.aoeRadius = 0;
+            this.windupDuration = 28;
         }
         this.hp = this.maxHp;
+        this.attackCooldown = 20 + Math.random() * 40;
+        this.attackState = 'move';
+        this.windupTimer = 0;
+        this.recoverTimer = 0;
+        this.aimX = x;
+        this.aimY = y;
     }
 
-    update(partyX, partyY) {
+    nearestMaid(maids) {
+        let best = null;
+        let bestDist = Infinity;
+        for (const maid of maids) {
+            if (!maid || maid.downed) continue;
+            const dist = Math.hypot(maid.x - this.x, maid.y - this.y);
+            if (dist < bestDist) {
+                best = maid;
+                bestDist = dist;
+            }
+        }
+        return { maid: best, dist: bestDist };
+    }
+
+    update(livingMaids) {
         if (!this.alive) {
             if (this.deathTimer > 0) this.deathTimer -= 1;
-            return;
+            return null;
         }
 
-        this.anim += 0.08;
+        this.anim += this.attackState === 'windup' ? 0.16 : 0.08;
         if (this.hitFlash > 0) this.hitFlash -= 1;
         if (this.slowTimer > 0) this.slowTimer -= 1;
+        if (this.attackCooldown > 0 && this.attackState === 'move') this.attackCooldown -= 1;
+
+        const { maid, dist } = this.nearestMaid(livingMaids || []);
+        if (this.attackState === 'windup') {
+            this.vx = 0;
+            this.vy = 0;
+            if (maid) {
+                this.aimX = maid.x;
+                this.aimY = maid.y;
+            }
+            this.windupTimer -= 1;
+            if (this.windupTimer <= 0) {
+                this.attackState = 'recover';
+                this.recoverTimer = 18;
+                this.attackCooldown = this.attackInterval;
+                if (this.attackType === 'aoe') {
+                    return { type: 'aoe', x: this.x, y: this.y, radius: this.aoeRadius, damage: this.attackDamage };
+                }
+                return {
+                    type: 'shot',
+                    shot: new EnemyShot(this.x, this.y, this.aimX, this.aimY, this.attackDamage)
+                };
+            }
+            return null;
+        }
+
+        if (this.attackState === 'recover') {
+            this.recoverTimer -= 1;
+            this.vx *= 0.8;
+            this.vy *= 0.8;
+            this.x += this.vx;
+            this.y += this.vy;
+            if (this.recoverTimer <= 0) this.attackState = 'move';
+            return null;
+        }
 
         this.wanderTimer -= 1;
         if (this.wanderTimer <= 0) {
@@ -49,14 +116,22 @@ class DustMonster {
             this.wanderTimer = 40 + Math.random() * 50;
         }
 
-        const dx = partyX - this.x;
-        const dy = partyY - this.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
         const slow = this.slowTimer > 0 ? 0.35 : 1;
-
-        if (dist < (this.kind === 'large' ? 280 : 220) && dist > 1) {
-            this.vx += (dx / dist) * this.chaseSpeed * slow;
-            this.vy += (dy / dist) * this.chaseSpeed * slow;
+        if (maid && dist > 1) {
+            const dx = maid.x - this.x;
+            const dy = maid.y - this.y;
+            if (dist > this.attackRange) {
+                this.vx += (dx / dist) * this.chaseSpeed * slow;
+                this.vy += (dy / dist) * this.chaseSpeed * slow;
+            } else if (this.attackCooldown <= 0) {
+                this.attackState = 'windup';
+                this.windupTimer = this.windupDuration;
+                this.aimX = maid.x;
+                this.aimY = maid.y;
+                this.vx = 0;
+                this.vy = 0;
+                return null;
+            }
         } else {
             const hdx = this.homeX - this.x;
             const hdy = this.homeY - this.y;
@@ -68,6 +143,7 @@ class DustMonster {
         this.vy *= 0.92;
         this.x += this.vx;
         this.y += this.vy;
+        return null;
     }
 
     applyHit(fromX, fromY, knockback, slow) {
@@ -151,9 +227,42 @@ class DustMonster {
 
         ctx.restore();
 
+        if (this.alive && this.attackState === 'windup') {
+            this.drawTelegraph(ctx);
+        }
+
         if (this.alive && (this.kind === 'large' || this.hp < this.maxHp)) {
             this.drawHp(ctx);
         }
+    }
+
+    drawTelegraph(ctx) {
+        const t = 1 - this.windupTimer / this.windupDuration;
+        ctx.save();
+        if (this.attackType === 'aoe') {
+            const r = this.aoeRadius * (0.45 + t * 0.55);
+            ctx.strokeStyle = `rgba(251, 191, 36, ${0.35 + t * 0.55})`;
+            ctx.fillStyle = `rgba(253, 224, 71, ${0.12 + t * 0.12})`;
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, r, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+        } else {
+            ctx.strokeStyle = `rgba(148, 163, 184, ${0.5 + t * 0.4})`;
+            ctx.setLineDash([6, 6]);
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(this.x, this.y);
+            ctx.lineTo(this.aimX, this.aimY);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#cbd5e1';
+            ctx.beginPath();
+            ctx.arc(this.x, this.y - 18, 6 + t * 4, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.restore();
     }
 
     drawHp(ctx) {
@@ -174,6 +283,58 @@ class DustMonster {
             ctx.fillStyle = '#be123c';
             ctx.fillText('大型', this.x, y - 3);
         }
+        ctx.restore();
+    }
+}
+
+class EnemyShot {
+    constructor(x, y, tx, ty, damage) {
+        this.x = x;
+        this.y = y;
+        this.damage = damage;
+        this.radius = 11;
+        this.alive = true;
+        const dx = tx - x;
+        const dy = ty - y;
+        const dist = Math.hypot(dx, dy) || 1;
+        const speed = 5.4;
+        this.vx = (dx / dist) * speed;
+        this.vy = (dy / dist) * speed;
+        this.life = 70;
+        this.anim = 0;
+    }
+
+    update() {
+        if (!this.alive) return;
+        this.x += this.vx;
+        this.y += this.vy;
+        this.life -= 1;
+        this.anim += 0.2;
+        if (this.life <= 0) this.alive = false;
+    }
+
+    hits(maid) {
+        if (!this.alive || !maid || maid.downed) return false;
+        return Math.hypot(this.x - maid.x, this.y - maid.y) <= this.radius + maid.radius;
+    }
+
+    draw(ctx) {
+        if (!this.alive) return;
+        const puff = Math.sin(this.anim) * 1.5;
+        ctx.save();
+        ctx.fillStyle = 'rgba(148, 163, 184, 0.35)';
+        ctx.beginPath();
+        ctx.arc(this.x - 4, this.y, 7 + puff, 0, Math.PI * 2);
+        ctx.arc(this.x + 5, this.y - 2, 6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#e2e8f0';
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, 8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#94a3b8';
+        ctx.beginPath();
+        ctx.arc(this.x - 2, this.y - 1, 2, 0, Math.PI * 2);
+        ctx.fill();
         ctx.restore();
     }
 }
