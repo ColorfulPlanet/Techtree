@@ -10,7 +10,7 @@ class RescueMaid {
         this.presetKey = presetKey;
         this.maid = new Maid(presetKey);
         this.maid.setPosition(x, y);
-        this.state = 'trapped'; // trapped | waiting | offered
+        this.state = 'trapped'; // trapped | waiting | offered | joined
         this.bubbleTimer = 0;
         this.waitingMaid = this.maid;
         this.needsLeave = false;
@@ -37,6 +37,8 @@ class RescueMaid {
 
     update(enemies, partyX, partyY) {
         this.bubbleTimer += 1;
+        if (this.state === 'joined' || !this.waitingMaid) return false;
+
         this.waitingMaid.animTime += 0.08;
         this.waitingMaid.x = this.homeX;
         this.waitingMaid.y = this.homeY;
@@ -50,7 +52,7 @@ class RescueMaid {
             this.state = 'waiting';
         }
 
-        if (this.needsLeave || this.state === 'offered' || this.state === 'trapped') {
+        if (this.needsLeave || this.state === 'offered' || this.state === 'trapped' || this.state === 'joined') {
             return false;
         }
 
@@ -62,7 +64,14 @@ class RescueMaid {
         this.needsLeave = true;
     }
 
+    markJoined() {
+        this.state = 'joined';
+        this.waitingMaid = null;
+        this.needsLeave = true;
+    }
+
     draw(ctx) {
+        if (this.state === 'joined' || !this.waitingMaid) return;
         this.waitingMaid.draw(ctx, false);
         this.drawBubble(ctx);
     }

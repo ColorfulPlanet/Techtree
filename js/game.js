@@ -197,7 +197,12 @@ class Game {
     }
 
     openSwapOffer() {
-        if (!this.rescue || !this.swapOverlay || !this.swapButtons) return;
+        if (!this.rescue || !this.rescue.waitingMaid) return;
+        if (this.formation.members.length < 3) {
+            this.joinPartyMember(this.rescue.waitingMaid);
+            return;
+        }
+        if (!this.swapOverlay || !this.swapButtons) return;
         this.rescue.state = 'offered';
         const candidate = this.rescue.waitingMaid;
         if (this.swapMessage) {
@@ -214,6 +219,22 @@ class Game {
         });
         this.swapOverlay.classList.remove('hidden');
         this.particles.addText(candidate.x, candidate.y - 40, `${candidate.name}が仲間になりました！`, candidate.color);
+    }
+
+    joinPartyMember(incoming) {
+        if (!incoming || this.formation.members.includes(incoming)) return;
+        incoming.applyPartyGrowth(this.progress);
+        incoming.downed = false;
+        const anchor = this.formation.getFrontCharacter();
+        const x = anchor ? anchor.x : this.partyX;
+        const y = anchor ? anchor.y : this.partyY;
+        incoming.setPosition(x, y);
+        this.formation.addMember(incoming);
+        this.formation.updateFormationPositions();
+        if (this.swapOverlay) this.swapOverlay.classList.add('hidden');
+        if (this.rescue) this.rescue.markJoined();
+        this.particles.addText(incoming.x, incoming.y - 36, `${incoming.name}加入！`, incoming.color);
+        this.updateUI();
     }
 
     closeSwapOffer() {
