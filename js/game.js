@@ -47,6 +47,9 @@ class Game {
         this.followSnapSpeed = 8;
         this.followReturnSpeed = 1.85;
         this.followBlockedSpeed = 1.25;
+        // 隊長切り替え時はカメラを瞬間移動させず、追いつくまで移動する
+        this.cameraSnapDistance = 14;
+        this.cameraMoveSpeed = 6.2;
         
         // UI要素
         this.debugInfo = {
@@ -438,6 +441,7 @@ class Game {
         this.updatePartyHud();
 
         this.particles.update();
+        this.updateCamera();
         if (this.hintTimer > 0) this.hintTimer -= 1;
         if (this.hintText) {
             this.hintText.style.opacity = this.hintTimer > 0 ? '1' : '0';
@@ -524,11 +528,7 @@ class Game {
      */
     anchorPartyToCaptain() {
         const front = this.formation.getFrontCharacter();
-        if (!front || front.downed) {
-            this.cameraX = this.partyX;
-            this.cameraY = this.partyY;
-            return;
-        }
+        if (!front || front.downed) return;
 
         const corrX = front.x - front.targetX;
         const corrY = front.y - front.targetY;
@@ -553,9 +553,28 @@ class Game {
                 }
             }
         }
+    }
 
-        this.cameraX = front.x;
-        this.cameraY = front.y;
+    /**
+     * カメラは隊長を追う。通常移動は密着、隊長切り替えは移動して追いつく。
+     */
+    updateCamera() {
+        const front = this.formation.getFrontCharacter();
+        const targetX = (front && !front.downed) ? front.x : this.partyX;
+        const targetY = (front && !front.downed) ? front.y : this.partyY;
+        const dx = targetX - this.cameraX;
+        const dy = targetY - this.cameraY;
+        const dist = Math.hypot(dx, dy);
+
+        if (dist <= this.cameraSnapDistance) {
+            this.cameraX = targetX;
+            this.cameraY = targetY;
+            return;
+        }
+
+        const step = Math.min(dist, this.cameraMoveSpeed);
+        this.cameraX += (dx / dist) * step;
+        this.cameraY += (dy / dist) * step;
     }
 
     limitMaidFollowStep() {
