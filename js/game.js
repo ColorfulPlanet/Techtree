@@ -59,9 +59,12 @@ class Game {
             spreadMode: document.getElementById('spreadMode')
         };
         this.jobHudItems = {
-            cleaning: document.getElementById('jobCleaning'),
-            cooking: document.getElementById('jobCooking'),
-            laundry: document.getElementById('jobLaundry')
+            mainCheck: document.getElementById('mainJobCheck'),
+            small: document.getElementById('jobSmallCount'),
+            medium: document.getElementById('jobMediumCount'),
+            large: document.getElementById('jobLargeCount'),
+            total: document.getElementById('jobTotalCount'),
+            fill: document.getElementById('jobClearFill')
         };
         this.clearOverlay = document.getElementById('clearOverlay');
         this.hintText = document.getElementById('hintText');
@@ -402,31 +405,30 @@ class Game {
     }
 
     updateJobHud() {
-        const totals = {};
+        const stats = { small: [0, 0], medium: [0, 0], large: [0, 0], main: [0, 0] };
+        let done = 0;
         for (const pile of this.jobPiles) {
-            if (!totals[pile.jobType]) totals[pile.jobType] = { remaining: 0, max: 0 };
-            totals[pile.jobType].remaining += pile.remaining;
-            totals[pile.jobType].max += pile.maxWork;
-        }
-        for (const [jobType, item] of Object.entries(this.jobHudItems)) {
-            if (!item) continue;
-            const total = totals[jobType];
-            if (!total) continue;
-            const check = item.querySelector('.job-check');
-            const remain = item.querySelector('.job-remain');
-            const fill = item.querySelector('.job-bar-fill');
-            const done = total.remaining <= 0;
-            const percent = done ? 0 : Math.max(1, Math.ceil(total.remaining / total.max * 100));
-            if (fill) fill.style.width = `${percent}%`;
-            if (remain) remain.textContent = done ? '完了' : `残り ${percent}%`;
-            if (!check) continue;
-            if (done) {
-                item.classList.add('done');
-                check.textContent = '✨';
-            } else {
-                item.classList.remove('done');
-                check.textContent = '○';
+            const role = pile.jobRole || 'large';
+            if (!stats[role]) stats[role] = [0, 0];
+            stats[role][1] += 1;
+            if (pile.isComplete()) {
+                stats[role][0] += 1;
+                done += 1;
             }
+        }
+        const total = this.jobPiles.length;
+        const pct = total > 0 ? Math.round(done / total * 100) : 0;
+        const setCount = (el, pair) => {
+            if (el) el.textContent = `${pair[0]}/${pair[1]}`;
+        };
+        setCount(this.jobHudItems.small, stats.small);
+        setCount(this.jobHudItems.medium, stats.medium);
+        setCount(this.jobHudItems.large, stats.large);
+        if (this.jobHudItems.total) this.jobHudItems.total.textContent = `${done} / ${total}（${pct}%）`;
+        if (this.jobHudItems.fill) this.jobHudItems.fill.style.width = `${pct}%`;
+        if (this.jobHudItems.mainCheck) {
+            const mainDone = stats.main[1] > 0 && stats.main[0] >= stats.main[1];
+            this.jobHudItems.mainCheck.textContent = mainDone ? '✨' : '○';
         }
     }
     
@@ -738,6 +740,14 @@ class Game {
             for (const enemy of enemies) {
                 this.separateBodies(maid, enemy, maid.radius, enemy.radius, 1, 1.15);
             }
+            for (const obstacle of this.stage.obstacles) {
+                this.separateFromStatic(
+                    maid,
+                    obstacle.x,
+                    obstacle.y,
+                    obstacle.radius + maid.radius
+                );
+            }
             const clamped = this.stage.clamp(maid.x, maid.y);
             maid.x = clamped.x;
             maid.y = clamped.y;
@@ -750,6 +760,14 @@ class Game {
                     pile.x,
                     pile.y,
                     pile.getCollisionRadius() + enemy.radius
+                );
+            }
+            for (const obstacle of this.stage.obstacles) {
+                this.separateFromStatic(
+                    enemy,
+                    obstacle.x,
+                    obstacle.y,
+                    obstacle.radius + enemy.radius
                 );
             }
             const clamped = this.stage.clamp(enemy.x, enemy.y);
@@ -833,8 +851,10 @@ class Game {
 
     checkClear() {
         if (this.jobPiles.length === 0) return;
-        const allDone = this.jobPiles.every((pile) => pile.isComplete());
-        if (!allDone) return;
+        const mainJobs = this.jobPiles.filter((pile) => pile.isMain);
+        const goal = mainJobs.length ? mainJobs : this.jobPiles.filter((pile) => pile.jobRole === 'main');
+        if (goal.length === 0) return;
+        if (!goal.every((pile) => pile.isComplete())) return;
         this.cleared = true;
         if (this.clearOverlay) this.clearOverlay.classList.remove('hidden');
         this.particles.spawnComplete(this.partyX, this.partyY);

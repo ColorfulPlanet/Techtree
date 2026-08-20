@@ -42,6 +42,18 @@ class JobPile {
         this.remaining = this.maxWork;
         this.radius = this.getCollisionRadius();
         this.workRadius = this.getWorkRadius();
+        this.isMain = !!options.isMain;
+        this.jobRole = options.role || this.defaultRole();
+        if (this.isMain && !options.label) {
+            this.label = `メイン：${this.label}`;
+        }
+    }
+
+    defaultRole() {
+        if (this.isMain) return 'main';
+        if (this.pileSize === 'small') return 'small';
+        if (this.pileSize === 'medium') return 'medium';
+        return 'large';
     }
 
     static META = {
@@ -346,8 +358,9 @@ class JobPile {
         if (!this.isComplete()) {
             ctx.font = this.pileSize === 'small' ? '10px sans-serif' : '12px sans-serif';
             ctx.fillStyle = '#eab308';
-            ctx.strokeText(this.getStarText(), this.x, this.y - visualR - 8);
-            ctx.fillText(this.getStarText(), this.x, this.y - visualR - 8);
+            const rec = this.recommendedLevel ? `${this.getStarText()}  目安Lv.${this.recommendedLevel}` : this.getStarText();
+            ctx.strokeText(rec, this.x, this.y - visualR - 8);
+            ctx.fillText(rec, this.x, this.y - visualR - 8);
         }
         ctx.restore();
     }
